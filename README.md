@@ -1,5 +1,7 @@
 # Pythia
 
+![Pythia Logo](assets/pythia-logo.jpeg)
+
 > *"Turns incomprehensible bytecode into equally incomprehensible DOT graphs. But hey, at least it's visual."*
 
 Pythia is a symbolic execution engine and Control Flow Graph (CFG) generator for the Ethereum Virtual Machine (EVM). It uses the **Z3 Theorem Prover** to symbolically explore smart contract bytecode paths and generates visual graphs (DOT) or structured data (JSON) representing the execution flow.
