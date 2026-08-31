@@ -11,7 +11,7 @@
     "test": "node tests/run_all.js"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "yukhyShell5",
+  "license": "MIT",
   "type": "commonjs"
 }
