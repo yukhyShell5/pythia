@@ -1,0 +1,52 @@
+name: Node.js Private Package CI
+
+on:
+  push:
+    branches:
+      - node-pkg
+  pull_request:
+    branches:
+      - node-pkg
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://npm.pkg.github.com'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run tests (including performance)
+        run: npm test
+
+  publish-gpr:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    # Only publish on push to node-pkg, not on PR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/node-pkg'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js for GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://npm.pkg.github.com'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Publish to GitHub Packages (Private)
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

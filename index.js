@@ -17,12 +17,28 @@ async function main() {
     let bytecodeInput = args[0];
     let bytecodeHex = "";
 
-    if (fs.existsSync(bytecodeInput)) {
+    const isPathLike = bytecodeInput.includes(path.sep) || bytecodeInput.includes('/') || bytecodeInput.endsWith('.hex') || bytecodeInput.endsWith('.bin');
+
+    if (isPathLike) {
+        if (!fs.existsSync(bytecodeInput)) {
+            console.error(`[-] Error: File not found at path: ${bytecodeInput}`);
+            process.exit(1);
+        }
         console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
         bytecodeHex = fs.readFileSync(bytecodeInput, 'utf8').trim();
     } else {
-        console.log(`[+] Reading bytecode from command line argument.`);
-        bytecodeHex = bytecodeInput.trim();
+        if (fs.existsSync(bytecodeInput)) {
+            console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
+            bytecodeHex = fs.readFileSync(bytecodeInput, 'utf8').trim();
+        } else {
+            console.log(`[+] Reading bytecode from command line argument.`);
+            bytecodeHex = bytecodeInput.trim();
+            // Basic validation to ensure it's actually hex
+            if (!/^[0-9a-fA-F]+$/.test(bytecodeHex.replace(/^0x/, ''))) {
+                 console.error(`[-] Error: The provided input is neither a valid file path nor valid hex bytecode.`);
+                 process.exit(1);
+            }
+        }
     }
 
     // 2. Parsing des arguments optionnels
