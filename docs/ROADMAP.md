@@ -1,7 +1,7 @@
 # Roadmap : Pythia (EVM Symbolic Execution & CFG)
 
 ## Stratégie de Branches (Git)
-
+ 
 Pour gérer la coexistence de la version Node.js (conçue comme un package intégrable) et de la réécriture performante en Go, voici la stratégie de versioning recommandée :
 
 *   **`branch: node-pkg`** : Hébergera la version actuelle en Node.js. L'objectif est d'appliquer les correctifs pour qu'elle puisse être intégrée facilement comme dépendance dans d'autres outils orientés JS/TS.
