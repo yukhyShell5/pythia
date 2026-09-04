@@ -12,6 +12,7 @@ Pythia is a symbolic execution engine and Control Flow Graph (CFG) generator for
 - **Up-to-Date EVM Support**: Fully supports the latest Ethereum hardforks (Shanghai & Cancun) including `TLOAD`, `TSTORE`, `MCOPY`, `PUSH0`, and EIP-4844 opcodes.
 - **Function Signature Resolution**: Automatically extracts 4-byte selectors and resolves their names using a lightning-fast local dictionary with an API fallback (`4byte.directory`).
 - **Linear Disassembler**: Includes a built-in `disasm` command to read human-readable EVM instructions straight from the terminal.
+- **ABI Decompilation**: Includes a built-in `abi` command to infer a standard JSON ABI by tracking state mutations, calldata reads, return statements, and `LOG` events.
 - **Concolic Fast-Path**: Eliminates path explosion and Z3 timeouts by quickly resolving static/concrete jumps automatically.
 - **Hybrid Symbolic Memory**: Resolves EVM memory and storage offsets to pure concrete values where possible to prevent WebAssembly AST bloat, falling back to Z3 simplification.
 - **Auto-OOM Protection**: Automatically wraps the execution with V8 `--expose-gc` and triggers periodic garbage collection to gracefully handle contracts with millions of branches (e.g. Lido).
@@ -41,6 +42,7 @@ node index.js <command> <hex_bytecode_or_file> [options]
 ### Commands
 - `cfg` : Generates a Control Flow Graph (DOT/JSON) using the Z3 symbolic engine.
 - `disasm` : Performs a fast, linear disassembly of the bytecode and prints it to the console.
+- `abi` : Symbolically executes the contract to infer and export a standard JSON ABI.
 
 ### Options
 
@@ -48,15 +50,20 @@ node index.js <command> <hex_bytecode_or_file> [options]
 | :--- | :--- | :--- |
 | `--format` | Output format for `cfg`: `dot`, `json`, or `both`. | `both` |
 | `--out` | Base name for the output file(s) in the `out/` directory. | `cfg_output` |
-| `--max-depth`| Maximum depth for symbolic exploration (`cfg` only). | `5000` |
-| `--z3-timeout`| Timeout for the Z3 solver in milliseconds (`cfg` only). | `100` |
+| `--max-depth`| Maximum depth for symbolic exploration (`cfg` and `abi`). | `5000` |
+| `--z3-timeout`| Timeout for the Z3 solver in milliseconds (`cfg` and `abi`). | `100` |
 | `--log-level` | Verbosity of the output (`0` for silent, `1` for info, `2` for progress loops). | `0` |
-| `--prune` | If provided, prunes unreachable basic blocks (`cfg` only). | `false` |
+| `--prune` | If provided, prunes unreachable basic blocks (`cfg` and `abi`). | `false` |
 | `--4bytes` | Acts as a function selector filter for the `disasm` command (extracts only signatures). | `false` |
 
-*Note: Function signature resolution is performed automatically by default for both `cfg` and `disasm`. The `--4bytes` flag is exclusively used to filter the `disasm` output.*
+*Note: Function signature resolution is performed automatically by default for all commands. The `--4bytes` flag is exclusively used to filter the `disasm` output.*
 
 ### Examples
+
+**Infer and extract a JSON ABI from a contract:**
+```bash
+node index.js abi ./smart-contract/weth.hex --log-level 1
+```
 
 **Disassemble a contract with automatic signature resolution:**
 ```bash

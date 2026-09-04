@@ -35,7 +35,7 @@ Cette roadmap détaille les prochaines étapes de développement pour la branche
 
 | Statut | Étape | Description |
 | :---: | :--- | :--- |
-| 🔲 | **3.1 Décompilation vers ABI** | Analyser le Dispatcher et les flux d'entrées/sorties pour inférer et générer automatiquement une ABI propre (fonctions, arguments, types de retour). |
+| ✅ | **3.1 Décompilation vers ABI** | Commande `abi` ajoutée pour déduire l'ABI JSON depuis l'exécution symbolique. Extraction heuristique des arguments (`CALLDATALOAD`), types (`address`), mutabilité (`payable`/`view`), et détection automatique des événements (`LOGx`). |
 | 🔲 | **3.2 Décompilation vers Yul** | Créer un processus d'analyse du CFG pour regrouper les blocs de base, reconstruire les structures de contrôle avancées et générer un code source Yul ou pseudo-Solidity lisible. |
 
 ---
