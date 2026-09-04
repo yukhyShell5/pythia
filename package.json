@@ -5,9 +5,6 @@
   "name": "@yukhyshell5/pythia",
   "version": "1.0.0",
   "description": "Turns incomprehensible bytecode into equally incomprehensible DOT graphs. But hey, at least it's visual.",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "main": "index.js",
   "devDependencies": {},
   "scripts": {
