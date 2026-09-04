@@ -30,9 +30,10 @@ Usage:
 
 Commands:
   cfg             Generate a Control Flow Graph from EVM bytecode
+  disasm          Disassemble EVM bytecode into readable instructions
 
 Arguments:
-  input           Path to a hex file or raw hex string (required for 'cfg')
+  input           Path to a hex file or raw hex string (required)
 
 Options:
   --format        Output format: 'dot', 'json', or 'both' (default: both)
@@ -40,24 +41,25 @@ Options:
   --max-depth     Max depth for symbolic exploration (default: 5000)
   --z3-timeout    Timeout for the Z3 solver in ms (default: 100)
   --prune         Remove unreachable basic blocks from the graph
+  --4bytes        Resolve 4-byte function signatures (disasm command)
   -h, --help      Show this help message
 
 Examples:
   node index.js cfg ./smart-contract/weth.hex --format dot --out weth_cfg --prune
-  node index.js cfg 6000355600005b00 --max-depth 1000
+  node index.js disasm ./smart-contract/weth.hex --4bytes
 `;
         console.log(helpText);
         process.exit(0);
     }
 
     const command = args[0];
-    if (command !== 'cfg') {
-        console.error(`[-] Error: Unknown command '${command}'. Currently only 'cfg' is supported.`);
+    if (command !== 'cfg' && command !== 'disasm') {
+        console.error(`[-] Error: Unknown command '${command}'. Supported commands are 'cfg' and 'disasm'.`);
         process.exit(1);
     }
 
     if (args.length < 2) {
-        console.error("[-] Error: Missing bytecode or file argument for 'cfg' command.");
+        console.error(`[-] Error: Missing bytecode or file argument for '${command}' command.`);
         process.exit(1);
     }
 
@@ -72,14 +74,14 @@ Examples:
             console.error(`[-] Error: File not found at path: ${bytecodeInput}`);
             process.exit(1);
         }
-        console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
+        if (global.logLevel >= 1) console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
         bytecodeHex = fs.readFileSync(bytecodeInput, 'utf8').trim();
     } else {
         if (fs.existsSync(bytecodeInput)) {
-            console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
+            if (global.logLevel >= 1) console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
             bytecodeHex = fs.readFileSync(bytecodeInput, 'utf8').trim();
         } else {
-            console.log(`[+] Reading bytecode from command line argument.`);
+            if (global.logLevel >= 1) console.log(`[+] Reading bytecode from command line argument.`);
             bytecodeHex = bytecodeInput.trim();
             // Basic validation to ensure it's actually hex
             if (!/^[0-9a-fA-F]+$/.test(bytecodeHex.replace(/^0x/, ''))) {
@@ -87,6 +89,62 @@ Examples:
                  process.exit(1);
             }
         }
+    }
+
+    const resolve4Bytes = args.includes('--4bytes');
+
+    if (command === 'disasm') {
+        const { Disassembler } = require('./src/disassembler.js');
+        const cleanHex = bytecodeHex.replace(/^0x/, '');
+        const bytecode = Buffer.from(cleanHex, 'hex');
+        
+        // Un disassembler linéaire n'a pas forcément les jumpdests dynamiques complets sans Z3,
+        // mais on peut extraire statiquement les JUMPDEST pour la découpe basique.
+        const validJumpDests = new Set();
+        for (let i = 0; i < bytecode.length; i++) {
+            if (bytecode[i] === 0x5b) validJumpDests.add(i);
+            else if (bytecode[i] >= 0x60 && bytecode[i] <= 0x7f) i += (bytecode[i] - 0x60) + 1;
+        }
+
+        const blocks = Disassembler.buildBasicBlocks(bytecode, validJumpDests, bytecode.length);
+        
+        // On résout toujours les signatures par défaut
+        if (global.logLevel >= 1) console.log("[+] Resolving 4-byte signatures...");
+        await Disassembler.resolveSignatures(blocks);
+
+        console.log("=== EVM Disassembly ===");
+        let foundSelectors = 0;
+        
+        for (const block of blocks) {
+            let blockHeaderPrinted = false;
+            
+            for (const ins of block.instructions) {
+                // Si le flag --4bytes est utilisé comme filtre, on ne garde que les sélecteurs
+                if (resolve4Bytes && !ins.isSelector) continue;
+                
+                if (!blockHeaderPrinted && !resolve4Bytes) {
+                    console.log(`\n[Block @ 0x${block.startPc.toString(16).padStart(4, '0')}]`);
+                    blockHeaderPrinted = true;
+                }
+
+                const hexPc = ins.pc.toString(16).padStart(4, '0').toUpperCase();
+                let line = `  0x${hexPc}  ${ins.mnemonic}`;
+                if (ins.data) line += ` ${ins.data}`;
+                if (ins.comment) {
+                    line += `\t// ${ins.comment}`;
+                } else if (ins.isSelector) {
+                    line += `\t// Unknown Signature`;
+                }
+                console.log(line);
+                if (ins.isSelector) foundSelectors++;
+            }
+        }
+        
+        if (resolve4Bytes) {
+            console.log(`\n[+] Found ${foundSelectors} function selectors.`);
+        }
+        
+        process.exit(0);
     }
 
     // 2. Parsing des arguments optionnels
@@ -149,6 +207,11 @@ Examples:
     await engine.run();
 
     if (logLevel >= 1) console.log(`[+] Exploration complete!`);
+    
+    if (logLevel >= 1) console.log("[+] Resolving 4-byte signatures for CFG...");
+    const { Disassembler } = require('./src/disassembler.js');
+    await Disassembler.resolveSignatures(engine.basicBlocks);
+
     // 5. Exportation
     const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
     

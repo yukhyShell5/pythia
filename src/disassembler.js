@@ -83,6 +83,40 @@ class Disassembler {
         
         return blocks;
     }
+
+    /**
+     * Parcourt les blocs de base de manière asynchrone, détecte les PUSH4 et tente de 
+     * résoudre leurs signatures (localement ou via 4byte.directory).
+     * @param {Array} blocks 
+     */
+    static async resolveSignatures(blocks) {
+        const { resolveSignature } = require('./signatures.js');
+        
+        for (const block of blocks) {
+            for (let i = 0; i < block.instructions.length; i++) {
+                const inst = block.instructions[i];
+                // PUSH4 = 0x63
+                if (inst.opcode === 0x63 && inst.data) {
+                    const nextInst = block.instructions[i+1];
+                    const nextNextInst = block.instructions[i+2];
+                    
+                    // Optimisation : On ne cherche que si c'est suivi d'un EQ (0x14) 
+                    // typique des routeurs EVM, ou si c'est explicitement demandé.
+                    let isSelector = false;
+                    if (nextInst && nextInst.opcode === 0x14) isSelector = true; // EQ
+                    if (nextInst && nextInst.mnemonic.startsWith('DUP') && nextNextInst && nextNextInst.opcode === 0x14) isSelector = true; // DUP2 EQ
+
+                    if (isSelector) {
+                        inst.isSelector = true;
+                        const sigName = await resolveSignature(inst.data);
+                        if (sigName) {
+                            inst.comment = sigName;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 module.exports = {

@@ -88,6 +88,9 @@ class CFGExporter {
                 if (ins.data) {
                     line += ` ${ins.data}`;
                 }
+                if (ins.comment) {
+                    line += `  // ${ins.comment}`;
+                }
                 label += `${line}\\l`; // \l force le retour à la ligne justifié à gauche dans Graphviz
             }
             dot += `  "PC_${block.startPc}" [label="${label}"];\n`;
