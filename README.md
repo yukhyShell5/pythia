@@ -9,6 +9,7 @@ Pythia is a symbolic execution engine and Control Flow Graph (CFG) generator for
 ## Features
 
 - **Symbolic Execution**: Uses Z3 to explore reachable execution paths in raw EVM bytecode.
+- **Concolic Fast-Path**: Eliminates path explosion and Z3 timeouts by quickly resolving static/concrete jumps automatically.
 - **CFG Generation**: Exports the explored paths into a Control Flow Graph.
 - **Multiple Formats**: Outputs in DOT (for Graphviz/visual rendering) and JSON (for programmatic analysis).
 - **Dead Code Pruning**: Automatically removes unreachable basic blocks.
@@ -29,7 +30,7 @@ npm install
 Pythia can read raw hex EVM bytecode directly from the command line or from a file.
 
 ```bash
-node index.js <hex_bytecode_or_file> [options]
+node index.js cfg <hex_bytecode_or_file> [options]
 ```
 
 ### Options
@@ -46,12 +47,12 @@ node index.js <hex_bytecode_or_file> [options]
 
 **From a file with output in DOT format, pruned:**
 ```bash
-node index.js ./smart-contract/weth.hex --format dot --out weth_cfg --prune
+node index.js cfg ./smart-contract/weth.hex --format dot --out weth_cfg --prune
 ```
 
 **From raw hex directly in the CLI, limiting depth:**
 ```bash
-node index.js 6000355600005b00 --format both --out inline_test --max-depth 1000
+node index.js cfg 6000355600005b00 --format both --out inline_test --max-depth 1000
 ```
 
 ## Testing
