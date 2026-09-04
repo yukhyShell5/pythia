@@ -19,16 +19,16 @@ Cette roadmap détaille les prochaines étapes de développement pour la branche
 
 | Statut | Étape | Description |
 | :---: | :--- | :--- |
-| 🔲 | **1.1 Path Conditions (Explosion des chemins)** | Corriger l'évaluation des `JUMPI`. Stocker les contraintes de chemin (`pathConstraints`) dans l'état et les injecter dans le solveur Z3 lors du forking pour éviter d'explorer des chemins mathématiquement impossibles. |
-| 🔲 | **1.2 Vraie gestion Mémoire & Storage** | Remplacer les simples `Map` Javascript par de véritables objets `Z3.Array`. Cela permettra à Z3 de comprendre formellement les liens entre les lectures (`SLOAD`/`MLOAD`) et les écritures (`SSTORE`/`MSTORE`). |
+| ✅ | **1.1 Path Conditions (Explosion des chemins)** | Corriger l'évaluation des `JUMPI`. Stocker les contraintes de chemin (`pathConstraints`) dans l'état et les injecter dans le solveur Z3 lors du forking pour éviter d'explorer des chemins mathématiquement impossibles. |
+| ✅ | **1.2 Vraie gestion Mémoire & Storage** | Implémentée avec un modèle de **Hybrid Symbolic Memory** (JS Maps pour l'optimisation des offsets concrets, fallback sur Z3) couplé à une protection Anti-OOM (Garbage Collection dynamique) au lieu de simples Z3.Arrays, pour tenir la charge sur des contrats immenses comme Lido. |
 
 ### Phase 2 : Améliorations Simples
 *Mise à niveau de l'outil pour supporter les contrats récents et améliorer l'expérience utilisateur.*
 
 | Statut | Étape | Description |
 | :---: | :--- | :--- |
-| 🔲 | **2.1 Mises à jour EVM (Shanghai & Cancun)** | Intégrer le support des opcodes récents manquants : `TSTORE` (0x5c), `TLOAD` (0x5d), `MCOPY` (0x5e), `BLOBHASH`, `BLOBBASEFEE` et `PUSH0` (0x5f). |
-| 🔲 | **2.2 Signatures de fonctions automatiques** | Détecter les comparaisons de dispatch (`EQ` avec `calldata`) et interroger une base de données de signatures (ex: 4byte.directory) pour nommer intelligemment les branches du graphe. |
+| ✅ | **2.1 Mises à jour EVM (Shanghai & Cancun)** | Intégrer le support des opcodes récents manquants : `TSTORE` (0x5c), `TLOAD` (0x5d), `MCOPY` (0x5e), `BLOBHASH`, `BLOBBASEFEE` et `PUSH0` (0x5f). |
+| ✅ | **2.2 Signatures de fonctions automatiques** | Détection automatique des `PUSH4` de dispatch, couplée à un mode `disasm`, filtrage `--4bytes`, et résolution hybride (dictionnaire local en mémoire ultra-rapide + fallback API `4byte.directory`). |
 
 ### Phase 3 : Améliorations Complexes (Décompilation)
 *Transformation du CFG bas-niveau en représentations compréhensibles.*
