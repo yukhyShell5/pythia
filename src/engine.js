@@ -6,6 +6,7 @@ const { getStackEffect } = require('./stack_effects.js');
 class SymbolicEngine {
     constructor(bytecodeHex, z3Context, maxDepth = 1000) {
         this.z3 = z3Context;
+        this.solver = new this.z3.Solver(); // ONE global solver to prevent memory leaks
         this.mathOpcodes = getMathOpcodes(this.z3);
         
         this.bytecodeHex = bytecodeHex.replace(/^0x/, '');
@@ -269,28 +270,49 @@ class SymbolicEngine {
             if (state.stack.length < 2) return;
             const destAst = state.stack.pop();
             const condAst = state.stack.pop();
+            const Z3_ZERO = this.z3.BitVec.val(0, 256);
             
-            const emptySolver = new this.z3.Solver();
-            let destPc = null;
-            if (["sat", "unknown"].includes(await emptySolver.check())) {
+            // --- BRANCHE TRUE (Saut) ---
+            this.solver.reset();
+            for (const constraint of state.pathConstraints) {
+                this.solver.add(constraint);
+            }
+            const condTrue = this.z3.Not(condAst.eq(Z3_ZERO));
+            this.solver.add(condTrue);
+            
+            if (["sat", "unknown"].includes(await this.solver.check())) {
+                let destPc = null;
                 try {
-                    const model = emptySolver.model();
+                    const model = this.solver.model();
                     const concreteDest = model.eval(destAst, true);
                     destPc = Number(concreteDest.value());
                 } catch(e) {}
+                
+                if (destPc !== null && this.validJumpDests.has(destPc)) {
+                    const stateTrue = state.clone();
+                    stateTrue.pc = destPc;
+                    stateTrue.pathConstraints.push(condTrue); // On sauvegarde la contrainte
+                    this.cfgEdges.push({ from: state.pc, to: destPc, type: 'JUMPI_TRUE' });
+                    this.queue.push(stateTrue);
+                }
             }
             
-            if (destPc !== null && this.validJumpDests.has(destPc)) {
-                const stateTrue = state.clone();
-                stateTrue.pc = destPc;
-                this.cfgEdges.push({ from: state.pc, to: destPc, type: 'JUMPI_TRUE' });
-                this.queue.push(stateTrue);
+            // --- BRANCHE FALSE (Pas de saut) ---
+            this.solver.reset();
+            for (const constraint of state.pathConstraints) {
+                this.solver.add(constraint);
+            }
+            const condFalse = condAst.eq(Z3_ZERO);
+            this.solver.add(condFalse);
+            
+            if (["sat", "unknown"].includes(await this.solver.check())) {
+                const stateFalse = state.clone();
+                stateFalse.pc = state.pc + 1;
+                stateFalse.pathConstraints.push(condFalse); // On sauvegarde la contrainte
+                this.cfgEdges.push({ from: state.pc, to: stateFalse.pc, type: 'JUMPI_FALSE' });
+                this.queue.push(stateFalse);
             }
             
-            const stateFalse = state.clone();
-            stateFalse.pc = state.pc + 1;
-            this.cfgEdges.push({ from: state.pc, to: stateFalse.pc, type: 'JUMPI_FALSE' });
-            this.queue.push(stateFalse);
             return;
         }
 
@@ -300,20 +322,57 @@ class SymbolicEngine {
             const destAst = state.stack.pop();
             const originalPc = state.pc;
             
-            const emptySolver = new this.z3.Solver();
-            let destPc = null;
-            if (["sat", "unknown"].includes(await emptySolver.check())) {
-                try {
-                    const model = emptySolver.model();
-                    const concreteDest = model.eval(destAst, true);
-                    destPc = Number(concreteDest.value());
-                } catch(e) {}
+            this.solver.reset();
+            for (const constraint of state.pathConstraints) {
+                this.solver.add(constraint);
             }
             
-            if (destPc !== null && this.validJumpDests.has(destPc)) {
-                state.pc = destPc;
-                this.cfgEdges.push({ from: originalPc, to: destPc, type: 'JUMP' });
-                this.queue.push(state);
+            if (["sat", "unknown"].includes(await this.solver.check())) {
+                let model;
+                try { model = this.solver.model(); } catch (e) {}
+                
+                if (model) {
+                    const firstConcrete = model.eval(destAst, true);
+                    let firstDestPc = null;
+                    try { firstDestPc = Number(firstConcrete.value()); } catch(e) {}
+                    
+                    if (firstDestPc !== null) {
+                        // OPTIMISATION MAJEURE : On demande à Z3 s'il existe une AUTRE destination possible.
+                        this.solver.push(); // Sauvegarde l'état du solveur
+                        const firstTargetVal = this.z3.BitVec.val(firstDestPc, 256);
+                        this.solver.add(this.z3.Not(destAst.eq(firstTargetVal)));
+                        const isDynamic = (await this.solver.check()) === "sat";
+                        this.solver.pop(); // Restauration de l'état
+                        
+                        if (!isDynamic) {
+                            // Le saut est statique/concret ! Une seule destination possible.
+                            if (this.validJumpDests.has(firstDestPc)) {
+                                const newState = state.clone();
+                                newState.pc = firstDestPc;
+                                this.cfgEdges.push({ from: originalPc, to: firstDestPc, type: 'JUMP' });
+                                this.queue.push(newState);
+                            }
+                            return; // Fini, on a esquivé la boucle !
+                        }
+                    }
+                }
+                
+                // Si on arrive ici, le saut est VRAIMENT DYNAMIQUE.
+                // On boucle sur validJumpDests pour trouver toutes les cibles possibles.
+                for (const jumpDest of this.validJumpDests) {
+                    this.solver.push();
+                    const targetVal = this.z3.BitVec.val(jumpDest, 256);
+                    this.solver.add(destAst.eq(targetVal));
+                    
+                    if (["sat", "unknown"].includes(await this.solver.check())) {
+                        const newState = state.clone();
+                        newState.pc = jumpDest;
+                        newState.pathConstraints.push(destAst.eq(targetVal));
+                        this.cfgEdges.push({ from: originalPc, to: jumpDest, type: 'JUMP_DYNAMIC' });
+                        this.queue.push(newState);
+                    }
+                    this.solver.pop();
+                }
             }
             return;
         }
@@ -333,9 +392,9 @@ class SymbolicEngine {
             
             let concreteOffset = null;
             try {
-                const emptySolver = new this.z3.Solver();
-                if (["sat", "unknown"].includes(await emptySolver.check())) {
-                    const model = emptySolver.model();
+                this.solver.reset();
+                if (["sat", "unknown"].includes(await this.solver.check())) {
+                    const model = this.solver.model();
                     concreteOffset = Number(model.eval(offset, true).value());
                 }
             } catch(e) {}
@@ -361,9 +420,9 @@ class SymbolicEngine {
             
             let concreteOffset = null;
             try {
-                const emptySolver = new this.z3.Solver();
-                if (["sat", "unknown"].includes(await emptySolver.check())) {
-                    const model = emptySolver.model();
+                this.solver.reset();
+                if (["sat", "unknown"].includes(await this.solver.check())) {
+                    const model = this.solver.model();
                     concreteOffset = Number(model.eval(offset, true).value());
                 }
             } catch(e) {}
