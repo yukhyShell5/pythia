@@ -10,7 +10,7 @@ async function testPerfWeth() {
     const wethPath = path.resolve(__dirname, '../smart-contract/weth.hex');
     
     try {
-        await execPromise(`node "${scriptPath}" "${wethPath}" --format both --out weth --max-depth 900000`);
+        await execPromise(`node "${scriptPath}" cfg "${wethPath}" --format both --out weth --max-depth 900000`);
         const elapsed = (Date.now() - startTime) / 1000;
         console.log(`[Timer] WETH CFG généré en ${elapsed.toFixed(2)} secondes.`);
         

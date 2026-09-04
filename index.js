@@ -8,13 +8,24 @@ async function main() {
     const args = process.argv.slice(2);
     
     if (args.length < 1 || args.includes('--help') || args.includes('-h')) {
-        console.log("Usage: node index.js <hex_bytecode_or_file> [--format dot|json|both] [--out filename] [--max-depth integer] [--z3-timeout integer_ms] [--prune]");
-        console.log("Example: node index.js 6000355600005b00 --format dot --out my_contract --max-depth 5000 --z3-timeout 100 --prune");
+        console.log("Usage: node index.js cfg <hex_bytecode_or_file> [--format dot|json|both] [--out filename] [--max-depth integer] [--z3-timeout integer_ms] [--prune]");
+        console.log("Example: node index.js cfg 6000355600005b00 --format dot --out my_contract --max-depth 5000 --z3-timeout 100 --prune");
         process.exit(0);
     }
 
+    const command = args[0];
+    if (command !== 'cfg') {
+        console.error(`[-] Error: Unknown command '${command}'. Currently only 'cfg' is supported.`);
+        process.exit(1);
+    }
+
+    if (args.length < 2) {
+        console.error("[-] Error: Missing bytecode or file argument for 'cfg' command.");
+        process.exit(1);
+    }
+
     // 1. Récupération du bytecode (depuis un fichier ou directement en argument)
-    let bytecodeInput = args[0];
+    let bytecodeInput = args[1];
     let bytecodeHex = "";
 
     const isPathLike = bytecodeInput.includes(path.sep) || bytecodeInput.includes('/') || bytecodeInput.endsWith('.hex') || bytecodeInput.endsWith('.bin');
