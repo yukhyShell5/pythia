@@ -84,7 +84,7 @@ class SymbolicEngine {
         while (this.queue.length > 0) {
             iter++;
             if (iter % 1000 === 0) {
-                console.log(`[+] Visited ${this.visitedStates.size} states (Queue: ${this.queue.length}, Depth: ${this.queue[this.queue.length-1].depth})`);
+                if (global.logLevel >= 2) console.log(`[+] Visited ${this.visitedStates.size} states (Queue: ${this.queue.length}, Depth: ${this.queue[this.queue.length-1].depth})`);
                 // Forcer le ramasse-miettes V8 pour nettoyer les vieux ASTs C++ si l'option est activée
                 if (global.gc) {
                     global.gc();

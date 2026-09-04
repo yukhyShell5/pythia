@@ -122,6 +122,16 @@ Examples:
 
     let prune = args.includes('--prune');
 
+    let logLevel = 0;
+    const logIndex = args.indexOf('--log-level');
+    if (logIndex !== -1 && args[logIndex + 1]) {
+        const parsed = parseInt(args[logIndex + 1], 10);
+        if (!isNaN(parsed)) {
+            logLevel = parsed;
+        }
+    }
+    global.logLevel = logLevel;
+
     // 3. Préparation du dossier de sortie (out/)
     const outDir = path.join(__dirname, 'out');
     if (!fs.existsSync(outDir)) {
@@ -129,16 +139,16 @@ Examples:
     }
 
     // 4. Lancement du moteur Z3
-    console.log("[+] Initializing Z3 solver...");
+    if (logLevel >= 1) console.log("[+] Initializing Z3 solver...");
     const z3 = await initZ3(z3Timeout);
 
-    console.log("[+] Running symbolic exploration (this may take a while on large contracts)...");
+    if (logLevel >= 1) console.log("[+] Running symbolic exploration (this may take a while on large contracts)...");
     
     // On met la limite de profondeur choisie (par défaut 5000)
     const engine = new SymbolicEngine(bytecodeHex, z3, maxDepth); 
     await engine.run();
 
-    console.log(`[+] Exploration complete!`);
+    if (logLevel >= 1) console.log(`[+] Exploration complete!`);
     // 5. Exportation
     const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
     
@@ -146,8 +156,10 @@ Examples:
         exporter.pruneUnreachable();
     }
 
-    console.log(`   - Basic Blocks found: ${exporter.blocks.length}`);
-    console.log(`   - Edges generated: ${exporter.edges.length}`);
+    if (logLevel >= 1) {
+        console.log(`   - Basic Blocks found: ${exporter.blocks.length}`);
+        console.log(`   - Edges generated: ${exporter.edges.length}`);
+    }
     const outPrefix = path.join(outDir, outName);
 
     if (format === 'json' || format === 'both') {
