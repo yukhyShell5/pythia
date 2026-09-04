@@ -42,15 +42,19 @@ class SymbolicState {
         // avec des offsets concrets, et on fallback sur Z3 si besoin.
         this.memory = new Map();
         this.storage = new Map();
+        this.tstorage = new Map(); // EIP-1153 Transient Storage
     }
 
     /**
-     * Crée une copie exacte et indépendante de cet état.
+     * Crée une copie indépendante (fork) de cet état pour une nouvelle branche (JUMPI).
      */
     clone() {
         const newState = new SymbolicState(this.z3);
+        
         newState.pc = this.pc;
         newState.depth = this.depth;
+        
+        // La pile et les contraintes doivent être copiées en surface (les AST Z3 sont immuables)
         newState.stack = [...this.stack];
         newState.pathConstraints = [...this.pathConstraints];
         newState.pathVisited = new Map(this.pathVisited);
@@ -58,6 +62,7 @@ class SymbolicState {
         // Copie des Maps
         newState.memory = new Map(this.memory);
         newState.storage = new Map(this.storage);
+        newState.tstorage = new Map(this.tstorage);
         
         return newState;
     }

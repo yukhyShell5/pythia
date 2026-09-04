@@ -503,6 +503,59 @@ class SymbolicEngine {
             return;
         }
 
+        // TLOAD (0x5C) - EIP-1153 Transient Storage
+        if (opcode === 0x5c) {
+            if (state.stack.length < 1) return;
+            const offset = state.stack.pop();
+            
+            let value = this.z3.BitVec.val(0, 256);
+            try {
+                let key = null;
+                if (this.z3.isBitVecVal(offset)) {
+                    key = offset.value().toString();
+                } else {
+                    const simp = await this.z3.simplify(offset);
+                    if (this.z3.isBitVecVal(simp)) {
+                        key = simp.value().toString();
+                    }
+                }
+                if (key !== null && state.tstorage.has(key)) {
+                    value = state.tstorage.get(key);
+                }
+            } catch(e) {}
+            
+            state.stack.push(value);
+            state.pc += 1;
+            this.queue.push(state);
+            return;
+        }
+
+        // TSTORE (0x5D) - EIP-1153 Transient Storage
+        if (opcode === 0x5d) {
+            if (state.stack.length < 2) return;
+            const offset = state.stack.pop();
+            const value = state.stack.pop();
+            
+            try {
+                let key = null;
+                if (this.z3.isBitVecVal(offset)) {
+                    key = offset.value().toString();
+                } else {
+                    const simp = await this.z3.simplify(offset);
+                    if (this.z3.isBitVecVal(simp)) {
+                        key = simp.value().toString();
+                    }
+                }
+                if (key !== null) {
+                    state.tstorage.set(key, value);
+                }
+            } catch(e) {}
+            
+            state.pc += 1;
+            this.queue.push(state);
+            return;
+        }
+
         // === FALLBACK INTELLIGENT ===
         // Implémentation générique pour tous les autres opcodes restants.
         // Utilise la table des effets de pile pour ne pas corrompre le CFG,
