@@ -8,8 +8,32 @@ async function main() {
     const args = process.argv.slice(2);
     
     if (args.length < 1 || args.includes('--help') || args.includes('-h')) {
-        console.log("Usage: node index.js cfg <hex_bytecode_or_file> [--format dot|json|both] [--out filename] [--max-depth integer] [--z3-timeout integer_ms] [--prune]");
-        console.log("Example: node index.js cfg 6000355600005b00 --format dot --out my_contract --max-depth 5000 --z3-timeout 100 --prune");
+        const helpText = `
+Pythia EVM Analyzer v1.0.0
+Symbolic Execution Engine & CFG Generator
+
+Usage:
+  node index.js <command> [input] [options]
+
+Commands:
+  cfg             Generate a Control Flow Graph from EVM bytecode
+
+Arguments:
+  input           Path to a hex file or raw hex string (required for 'cfg')
+
+Options:
+  --format        Output format: 'dot', 'json', or 'both' (default: both)
+  --out           Base name for the output file(s) (default: cfg_output)
+  --max-depth     Max depth for symbolic exploration (default: 5000)
+  --z3-timeout    Timeout for the Z3 solver in ms (default: 100)
+  --prune         Remove unreachable basic blocks from the graph
+  -h, --help      Show this help message
+
+Examples:
+  node index.js cfg ./smart-contract/weth.hex --format dot --out weth_cfg --prune
+  node index.js cfg 6000355600005b00 --max-depth 1000
+`;
+        console.log(helpText);
         process.exit(0);
     }
 
