@@ -390,23 +390,18 @@ class SymbolicEngine {
             if (state.stack.length < 1) return;
             const offset = state.stack.pop();
             
-            let concreteOffset = null;
+            let value = this.z3.BitVec.val(0, 256);
             try {
-                this.solver.reset();
-                if (["sat", "unknown"].includes(await this.solver.check())) {
-                    const model = this.solver.model();
-                    concreteOffset = Number(model.eval(offset, true).value());
+                const simp = await this.z3.simplify(offset);
+                if (this.z3.isBitVecVal(simp)) {
+                    const key = simp.value().toString();
+                    if (state.memory.has(key)) {
+                        value = state.memory.get(key);
+                    }
                 }
             } catch(e) {}
             
-            let value = null;
-            if (concreteOffset !== null && state.memory.has(concreteOffset)) {
-                value = state.memory.get(concreteOffset);
-            } else {
-                value = this.z3.BitVec.val(0, 256); // Default value or symbolic
-            }
             state.stack.push(value);
-            
             state.pc += 1;
             this.queue.push(state);
             return;
@@ -418,18 +413,13 @@ class SymbolicEngine {
             const offset = state.stack.pop();
             const value = state.stack.pop();
             
-            let concreteOffset = null;
             try {
-                this.solver.reset();
-                if (["sat", "unknown"].includes(await this.solver.check())) {
-                    const model = this.solver.model();
-                    concreteOffset = Number(model.eval(offset, true).value());
+                const simp = await this.z3.simplify(offset);
+                if (this.z3.isBitVecVal(simp)) {
+                    const key = simp.value().toString();
+                    state.memory.set(key, value);
                 }
             } catch(e) {}
-            
-            if (concreteOffset !== null) {
-                state.memory.set(concreteOffset, value);
-            }
             
             state.pc += 1;
             this.queue.push(state);
@@ -437,18 +427,42 @@ class SymbolicEngine {
         }
 
         // === STORAGE (SLOAD, SSTORE) ===
+        // SLOAD (0x54)
         if (opcode === 0x54) {
             if (state.stack.length < 1) return;
-            state.stack.pop();
-            state.stack.push(this.z3.BitVec.val(0, 256));
+            const offset = state.stack.pop();
+            
+            let value = this.z3.BitVec.val(0, 256);
+            try {
+                const simp = await this.z3.simplify(offset);
+                if (this.z3.isBitVecVal(simp)) {
+                    const key = simp.value().toString();
+                    if (state.storage.has(key)) {
+                        value = state.storage.get(key);
+                    }
+                }
+            } catch(e) {}
+            
+            state.stack.push(value);
             state.pc += 1;
             this.queue.push(state);
             return;
         }
+
+        // SSTORE (0x55)
         if (opcode === 0x55) {
             if (state.stack.length < 2) return;
-            state.stack.pop();
-            state.stack.pop();
+            const offset = state.stack.pop();
+            const value = state.stack.pop();
+            
+            try {
+                const simp = await this.z3.simplify(offset);
+                if (this.z3.isBitVecVal(simp)) {
+                    const key = simp.value().toString();
+                    state.storage.set(key, value);
+                }
+            } catch(e) {}
+            
             state.pc += 1;
             this.queue.push(state);
             return;

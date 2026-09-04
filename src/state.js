@@ -37,7 +37,9 @@ class SymbolicState {
         this.pathConstraints = [];    // Les équations logiques
         this.pathVisited = new Map(); // pc -> count pour cette branche
         
-        // MÉMOIRE & STORAGE SYMBOLIQUES (Z3 Arrays)
+        // MÉMOIRE & STORAGE SYMBOLIQUES (Hybrid Map)
+        // On utilise un Map JS pour éviter l'explosion de l'AST (OOM) 
+        // avec des offsets concrets, et on fallback sur Z3 si besoin.
         this.memory = new Map();
         this.storage = new Map();
     }
@@ -53,8 +55,7 @@ class SymbolicState {
         newState.pathConstraints = [...this.pathConstraints];
         newState.pathVisited = new Map(this.pathVisited);
         
-        // Z3 Arrays sont immuables (ce sont des AST mathématiques). 
-        // On peut donc juste copier la référence, aucune corruption n'est possible !
+        // Copie des Maps
         newState.memory = new Map(this.memory);
         newState.storage = new Map(this.storage);
         
