@@ -1,13 +1,26 @@
+#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 const { initZ3 } = require('./src/state.js');
 const { SymbolicEngine } = require('./src/engine.js');
 const { CFGExporter } = require('./src/exporter.js');
+const { execSync } = require('child_process');
+
+// Relance automatique du script avec le flag --expose-gc pour protéger la RAM WebAssembly
+if (!global.gc && !process.env.PYTHIA_GC_RESPAWN) {
+    process.env.PYTHIA_GC_RESPAWN = '1';
+    try {
+        execSync(`node --expose-gc "${__filename}" ${process.argv.slice(2).join(' ')}`, { stdio: 'inherit' });
+        process.exit(0);
+    } catch (e) {
+        process.exit(e.status || 1);
+    }
+}
 
 async function main() {
     const args = process.argv.slice(2);
     
-    if (args.length < 1 || args.includes('--help') || args.includes('-h')) {
+    if (args.length < 2 || args.includes('--help') || args.includes('-h')) {
         const helpText = `
 Pythia EVM Analyzer v1.0.0
 Symbolic Execution Engine & CFG Generator

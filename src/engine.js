@@ -80,9 +80,20 @@ class SymbolicEngine {
         
         
 
+        let iter = 0;
         while (this.queue.length > 0) {
-            let state = this.queue.pop();
+            iter++;
+            if (iter % 1000 === 0) {
+                console.log(`[+] Visited ${this.visitedStates.size} states (Queue: ${this.queue.length}, Depth: ${this.queue[this.queue.length-1].depth})`);
+                // Forcer le ramasse-miettes V8 pour nettoyer les vieux ASTs C++ si l'option est activée
+                if (global.gc) {
+                    global.gc();
+                }
+                // Rendre la main à l'event loop pour le background GC
+                await new Promise(r => setTimeout(r, 0));
+            }
             
+            let state = this.queue.pop();
             if (state.pc >= this.bytecode.length) {
                 continue; 
             }
@@ -392,12 +403,17 @@ class SymbolicEngine {
             
             let value = this.z3.BitVec.val(0, 256);
             try {
-                const simp = await this.z3.simplify(offset);
-                if (this.z3.isBitVecVal(simp)) {
-                    const key = simp.value().toString();
-                    if (state.memory.has(key)) {
-                        value = state.memory.get(key);
+                let key = null;
+                if (this.z3.isBitVecVal(offset)) {
+                    key = offset.value().toString();
+                } else {
+                    const simp = await this.z3.simplify(offset);
+                    if (this.z3.isBitVecVal(simp)) {
+                        key = simp.value().toString();
                     }
+                }
+                if (key !== null && state.memory.has(key)) {
+                    value = state.memory.get(key);
                 }
             } catch(e) {}
             
@@ -414,9 +430,16 @@ class SymbolicEngine {
             const value = state.stack.pop();
             
             try {
-                const simp = await this.z3.simplify(offset);
-                if (this.z3.isBitVecVal(simp)) {
-                    const key = simp.value().toString();
+                let key = null;
+                if (this.z3.isBitVecVal(offset)) {
+                    key = offset.value().toString();
+                } else {
+                    const simp = await this.z3.simplify(offset);
+                    if (this.z3.isBitVecVal(simp)) {
+                        key = simp.value().toString();
+                    }
+                }
+                if (key !== null) {
                     state.memory.set(key, value);
                 }
             } catch(e) {}
@@ -434,12 +457,17 @@ class SymbolicEngine {
             
             let value = this.z3.BitVec.val(0, 256);
             try {
-                const simp = await this.z3.simplify(offset);
-                if (this.z3.isBitVecVal(simp)) {
-                    const key = simp.value().toString();
-                    if (state.storage.has(key)) {
-                        value = state.storage.get(key);
+                let key = null;
+                if (this.z3.isBitVecVal(offset)) {
+                    key = offset.value().toString();
+                } else {
+                    const simp = await this.z3.simplify(offset);
+                    if (this.z3.isBitVecVal(simp)) {
+                        key = simp.value().toString();
                     }
+                }
+                if (key !== null && state.storage.has(key)) {
+                    value = state.storage.get(key);
                 }
             } catch(e) {}
             
@@ -456,9 +484,16 @@ class SymbolicEngine {
             const value = state.stack.pop();
             
             try {
-                const simp = await this.z3.simplify(offset);
-                if (this.z3.isBitVecVal(simp)) {
-                    const key = simp.value().toString();
+                let key = null;
+                if (this.z3.isBitVecVal(offset)) {
+                    key = offset.value().toString();
+                } else {
+                    const simp = await this.z3.simplify(offset);
+                    if (this.z3.isBitVecVal(simp)) {
+                        key = simp.value().toString();
+                    }
+                }
+                if (key !== null) {
                     state.storage.set(key, value);
                 }
             } catch(e) {}
