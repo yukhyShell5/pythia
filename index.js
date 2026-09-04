@@ -31,6 +31,7 @@ Usage:
 Commands:
   cfg             Generate a Control Flow Graph from EVM bytecode
   disasm          Disassemble EVM bytecode into readable instructions
+  abi             Decompile EVM bytecode into a standard JSON ABI
 
 Arguments:
   input           Path to a hex file or raw hex string (required)
@@ -47,14 +48,15 @@ Options:
 Examples:
   node index.js cfg ./smart-contract/weth.hex --format dot --out weth_cfg --prune
   node index.js disasm ./smart-contract/weth.hex --4bytes
+  node index.js abi ./smart-contract/weth.hex
 `;
         console.log(helpText);
         process.exit(0);
     }
 
     const command = args[0];
-    if (command !== 'cfg' && command !== 'disasm') {
-        console.error(`[-] Error: Unknown command '${command}'. Supported commands are 'cfg' and 'disasm'.`);
+    if (!['cfg', 'disasm', 'abi'].includes(command)) {
+        console.error(`[-] Error: Unknown command '${command}'. Supported commands are 'cfg', 'disasm', and 'abi'.`);
         process.exit(1);
     }
 
@@ -190,54 +192,77 @@ Examples:
     }
     global.logLevel = logLevel;
 
-    // 3. Préparation du dossier de sortie (out/)
-    const outDir = path.join(__dirname, 'out');
-    if (!fs.existsSync(outDir)) {
-        fs.mkdirSync(outDir);
+    if (command === 'cfg' || command === 'abi') {
+        // 3. Préparation du dossier de sortie (out/)
+        const outDir = path.join(__dirname, 'out');
+        if (!fs.existsSync(outDir)) {
+            fs.mkdirSync(outDir);
+        }
+
+        // 4. Lancement du moteur Z3
+        if (logLevel >= 1) console.log("[+] Initializing Z3 solver...");
+        const z3 = await initZ3(z3Timeout);
+
+        if (logLevel >= 1) console.log("[+] Running symbolic exploration (this may take a while on large contracts)...");
+        
+        // On met la limite de profondeur choisie (par défaut 5000)
+        const engine = new SymbolicEngine(bytecodeHex, z3, maxDepth); 
+        await engine.run();
+
+        if (logLevel >= 1) console.log(`[+] Exploration complete!`);
+        
+        if (logLevel >= 1) console.log("[+] Resolving 4-byte signatures...");
+        const { Disassembler } = require('./src/disassembler.js');
+        await Disassembler.resolveSignatures(engine.basicBlocks);
+
+        if (command === 'cfg') {
+            // 5. Exportation CFG
+            const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
+            
+            if (prune) {
+                exporter.pruneUnreachable();
+            }
+
+            if (logLevel >= 1) {
+                console.log(`   - Basic Blocks found: ${exporter.blocks.length}`);
+                console.log(`   - Edges generated: ${exporter.edges.length}`);
+            }
+            const outPrefix = path.join(outDir, outName);
+
+            if (format === 'json' || format === 'both') {
+                const jsonPath = `${outPrefix}.json`;
+                fs.writeFileSync(jsonPath, exporter.toJson(), 'utf8');
+                if (logLevel >= 0) console.log(`[+] Exported JSON: ${jsonPath}`);
+            }
+
+            if (format === 'dot' || format === 'both') {
+                const dotPath = `${outPrefix}.dot`;
+                fs.writeFileSync(dotPath, exporter.toDot(), 'utf8');
+                if (logLevel >= 0) console.log(`[+] Exported DOT: ${dotPath}`);
+            }
+        } else if (command === 'abi') {
+            // 5. Décompilation ABI
+            const { ABIDecompiler } = require('./src/decompiler.js');
+            const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
+            
+            if (prune) {
+                exporter.pruneUnreachable();
+            }
+
+            if (logLevel >= 1) console.log("[+] Inferring ABI from execution paths...");
+            const decompiler = new ABIDecompiler(exporter.blocks, exporter.edges);
+            const abi = await decompiler.generateABI();
+
+            const outPrefix = path.join(outDir, outName);
+            const abiPath = `${outPrefix}.abi.json`;
+            fs.writeFileSync(abiPath, JSON.stringify(abi, null, 2), 'utf8');
+            
+            if (logLevel >= 0) console.log(`[+] Exported ABI: ${abiPath}`);
+            if (logLevel >= 1) console.log(`   - Functions inferred: ${abi.length}`);
+        }
+
+        if (logLevel >= 0) console.log(`[+] Finished successfully.`);
     }
-
-    // 4. Lancement du moteur Z3
-    if (logLevel >= 1) console.log("[+] Initializing Z3 solver...");
-    const z3 = await initZ3(z3Timeout);
-
-    if (logLevel >= 1) console.log("[+] Running symbolic exploration (this may take a while on large contracts)...");
-    
-    // On met la limite de profondeur choisie (par défaut 5000)
-    const engine = new SymbolicEngine(bytecodeHex, z3, maxDepth); 
-    await engine.run();
-
-    if (logLevel >= 1) console.log(`[+] Exploration complete!`);
-    
-    if (logLevel >= 1) console.log("[+] Resolving 4-byte signatures for CFG...");
-    const { Disassembler } = require('./src/disassembler.js');
-    await Disassembler.resolveSignatures(engine.basicBlocks);
-
-    // 5. Exportation
-    const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
-    
-    if (prune) {
-        exporter.pruneUnreachable();
-    }
-
-    if (logLevel >= 1) {
-        console.log(`   - Basic Blocks found: ${exporter.blocks.length}`);
-        console.log(`   - Edges generated: ${exporter.edges.length}`);
-    }
-    const outPrefix = path.join(outDir, outName);
-
-    if (format === 'json' || format === 'both') {
-        const jsonPath = `${outPrefix}.json`;
-        fs.writeFileSync(jsonPath, exporter.toJson(), 'utf8');
-        console.log(`[+] Exported JSON: ${jsonPath}`);
-    }
-    
-    if (format === 'dot' || format === 'both') {
-        const dotPath = `${outPrefix}.dot`;
-        fs.writeFileSync(dotPath, exporter.toDot(), 'utf8');
-        console.log(`[+] Exported DOT: ${dotPath}`);
-    }
-
-    console.log("[+] Finished successfully.");
     process.exit(0);
 }
 
