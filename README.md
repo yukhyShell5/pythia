@@ -43,6 +43,9 @@ node index.js <command> <hex_bytecode_or_file> [options]
 - `cfg` : Generates a Control Flow Graph (DOT/JSON) using the Z3 symbolic engine.
 - `disasm` : Performs a fast, linear disassembly of the bytecode and prints it to the console.
 - `abi` : Symbolically executes the contract to infer and export a standard JSON ABI.
+- `ast` : Generates the Abstract Syntax Tree (AST) JSON from the Control Flow Graph.
+- `yul` : Decompiles the EVM bytecode into raw Yul source code.
+- `decompile` : Decompiles the EVM bytecode into readable Solidity-like pseudo-code, extracting individual functions.
 
 ### Options
 
@@ -73,6 +76,11 @@ node index.js disasm ./smart-contract/weth.hex
 **Extract only the available function selectors from a contract:**
 ```bash
 node index.js disasm ./smart-contract/weth.hex --4bytes
+```
+
+**Decompile a contract into readable pseudo-code:**
+```bash
+node index.js decompile ./smart-contract/weth.hex --log-level 1
 ```
 
 **Generate a DOT graph, pruning unreachable blocks and showing progress:**
