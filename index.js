@@ -32,6 +32,9 @@ Commands:
   cfg             Generate a Control Flow Graph from EVM bytecode
   disasm          Disassemble EVM bytecode into readable instructions
   abi             Decompile EVM bytecode into a standard JSON ABI
+  ast             Generate the Abstract Syntax Tree (AST) JSON from CFG
+  yul             Decompile EVM bytecode into Yul source code
+  decompile       Decompile EVM bytecode into readable pseudo-code
 
 Arguments:
   input           Path to a hex file or raw hex string (required)
@@ -49,14 +52,17 @@ Examples:
   node index.js cfg ./smart-contract/weth.hex --format dot --out weth_cfg --prune
   node index.js disasm ./smart-contract/weth.hex --4bytes
   node index.js abi ./smart-contract/weth.hex
+  node index.js ast ./smart-contract/weth.hex
+  node index.js yul ./smart-contract/weth.hex
+  node index.js decompile ./smart-contract/weth.hex
 `;
         console.log(helpText);
         process.exit(0);
     }
 
     const command = args[0];
-    if (!['cfg', 'disasm', 'abi'].includes(command)) {
-        console.error(`[-] Error: Unknown command '${command}'. Supported commands are 'cfg', 'disasm', and 'abi'.`);
+    if (!['cfg', 'disasm', 'abi', 'ast', 'yul', 'decompile'].includes(command)) {
+        console.error(`[-] Error: Unknown command '${command}'. Supported commands are 'cfg', 'disasm', 'abi', 'ast', 'yul', and 'decompile'.`);
         process.exit(1);
     }
 
@@ -192,7 +198,7 @@ Examples:
     }
     global.logLevel = logLevel;
 
-    if (command === 'cfg' || command === 'abi') {
+    if (command === 'cfg' || command === 'abi' || command === 'ast' || command === 'yul' || command === 'decompile') {
         // 3. Préparation du dossier de sortie (out/)
         const outDir = path.join(__dirname, 'out');
         if (!fs.existsSync(outDir)) {
@@ -259,6 +265,45 @@ Examples:
             
             if (logLevel >= 0) console.log(`[+] Exported ABI: ${abiPath}`);
             if (logLevel >= 1) console.log(`   - Functions inferred: ${abi.length}`);
+        } else if (command === 'ast') {
+            const { ASTBuilder } = require('./src/ast_builder.js');
+            const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
+            if (prune) exporter.pruneUnreachable();
+
+            if (logLevel >= 1) console.log("[+] Generating AST from CFG...");
+            const builder = new ASTBuilder(exporter.blocks, exporter.edges);
+            const ast = builder.build();
+
+            const outPrefix = path.join(outDir, outName);
+            const astPath = `${outPrefix}.ast.json`;
+            fs.writeFileSync(astPath, JSON.stringify(ast, null, 2), 'utf8');
+            if (logLevel >= 0) console.log(`[+] Exported AST: ${astPath}`);
+        } else if (command === 'yul') {
+            const { YulDecompiler } = require('./src/yul_decompiler.js');
+            const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
+            if (prune) exporter.pruneUnreachable();
+
+            if (logLevel >= 1) console.log("[+] Decompiling CFG to Yul...");
+            const decompiler = new YulDecompiler(exporter.blocks, exporter.edges);
+            const yulCode = decompiler.decompile();
+
+            const outPrefix = path.join(outDir, outName);
+            const yulPath = `${outPrefix}.yul`;
+            fs.writeFileSync(yulPath, yulCode, 'utf8');
+            if (logLevel >= 0) console.log(`[+] Exported Yul: ${yulPath}`);
+        } else if (command === 'decompile') {
+            const { PseudoDecompiler } = require('./src/pseudo_decompiler.js');
+            const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
+            if (prune) exporter.pruneUnreachable();
+
+            if (logLevel >= 1) console.log("[+] Decompiling CFG to pseudo-code...");
+            const decompiler = new PseudoDecompiler(exporter.blocks, exporter.edges);
+            const pseudoCode = decompiler.decompile();
+
+            const outPrefix = path.join(outDir, outName);
+            const pseudoPath = `${outPrefix}.pseudo.sol`;
+            fs.writeFileSync(pseudoPath, pseudoCode, 'utf8');
+            if (logLevel >= 0) console.log(`[+] Exported Pseudo-Code: ${pseudoPath}`);
         }
 
         if (logLevel >= 0) console.log(`[+] Finished successfully.`);
