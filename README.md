@@ -4,22 +4,42 @@
 
 > *"Turns incomprehensible bytecode into equally incomprehensible DOT graphs. But hey, at least it's visual."*
 
-Pythia is a symbolic execution engine and Control Flow Graph (CFG) generator for the Ethereum Virtual Machine (EVM). It uses the **Z3 Theorem Prover** to symbolically explore smart contract bytecode paths and generates visual graphs (DOT) or structured data (JSON) representing the execution flow.
+Pythia is a **symbolic execution engine**, **decompiler**, and **Control Flow Graph (CFG) generator** for the Ethereum Virtual Machine (EVM). It uses the **Z3 Theorem Prover** to symbolically explore smart contract bytecode paths and produces visual graphs, structured Yul code, and readable Solidity-like pseudo-code.
 
 ## Features
 
-- **Symbolic Execution**: Uses Z3 to explore reachable execution paths in raw EVM bytecode.
-- **Up-to-Date EVM Support**: Fully supports the latest Ethereum hardforks (Shanghai & Cancun) including `TLOAD`, `TSTORE`, `MCOPY`, `PUSH0`, and EIP-4844 opcodes.
-- **Function Signature Resolution**: Automatically extracts 4-byte selectors and resolves their names using a lightning-fast local dictionary with an API fallback (`4byte.directory`).
-- **Linear Disassembler**: Includes a built-in `disasm` command to read human-readable EVM instructions straight from the terminal.
-- **ABI Decompilation**: Includes a built-in `abi` command to infer a standard JSON ABI by tracking state mutations, calldata reads, return statements, and `LOG` events.
-- **Concolic Fast-Path**: Eliminates path explosion and Z3 timeouts by quickly resolving static/concrete jumps automatically.
-- **Hybrid Symbolic Memory**: Resolves EVM memory and storage offsets to pure concrete values where possible to prevent WebAssembly AST bloat, falling back to Z3 simplification.
-- **Auto-OOM Protection**: Automatically wraps the execution with V8 `--expose-gc` and triggers periodic garbage collection to gracefully handle contracts with millions of branches (e.g. Lido).
-- **CFG Generation**: Exports the explored paths into a Control Flow Graph.
-- **Multiple Formats**: Outputs in DOT (for Graphviz/visual rendering) and JSON (for programmatic analysis).
-- **Dead Code Pruning**: Automatically removes unreachable basic blocks.
-- **Configurable Limits**: Easily adjust maximum exploration depth, verbosity, and solver timeouts.
+### 🔬 Symbolic Engine
+- **Correct Symbolic Storage & Memory**: `SLOAD` and `MLOAD` with symbolic offsets return unconstrained Z3 variables instead of the concrete value `0`, ensuring both branches of conditions like `require(balances[x] > 0)` are fully explored.
+- **Per-Path Loop Detection**: The visit counter is scoped to each execution branch (`state.pathVisited`) rather than globally shared — prevents legitimate paths from being killed because they share a `REVERT` block with 1000 other branches.
+- **Stable Symbolic Opcodes**: `EXP`, `BYTE`, `SIGNEXTEND`, and `SHA3` are modelled as stable uninterpreted functions keyed to their Z3 AST node IDs. Same operands → same variable name across all branches.
+- **Correct SAR**: Arithmetic shift right uses Z3's native `.shr()` (sign-preserving), not a random stub.
+- **Concolic Fast-Path**: Eliminates path explosion and Z3 timeouts by quickly resolving static/concrete jumps.
+- **Hybrid Symbolic Memory**: Resolves memory and storage offsets to concrete values where possible, falling back to Z3 simplification.
+- **Up-to-Date EVM**: Supports the latest hardforks (Shanghai & Cancun) including `TLOAD`, `TSTORE`, `MCOPY`, `PUSH0`, `BLOBHASH`, and `BLOBBASEFEE`.
+- **Auto-OOM Protection**: Periodic V8 GC to gracefully handle large contracts (e.g. Lido).
+
+### 📐 Structured AST
+- **Post-Dominator Merge Points**: `ASTBuilder` runs a simultaneous BFS from both JUMPI branches to find their immediate post-dominator — the mathematical boundary of every `if/else` block.
+- **Recursive If/Else Nodes**: `trueBranch` and `falseBranch` are full sub-ASTs bounded by the merge-point. No flat lists with interleaved goto targets.
+- **Automatic While Detection**: A branch containing a `LoopBack` targeting its own condition block is automatically promoted to a `while` node.
+- **Back-Edge Safety**: Recursive sub-builders receive the parent's `inStack` as `loopHeaders`, emitting `LoopBack` instead of recursing infinitely.
+
+### 📝 Pseudo-Code Decompiler
+- **Structured if/else**: Properly indented `if (cond) { … } else { … }` — no more `goto PC_X` placeholders for conditional branches.
+- **Structured while loops**: Automatically detected and emitted as `while (cond) { … }` from the recursive AST.
+- **Function Extraction**: Identifies individual Solidity functions from the ABI dispatcher and decompiles each one separately.
+- **Expression Simplifier**: Folds constants, recognises `msg.sig`, address masks, and common Solidity patterns.
+
+### 📦 Yul Decompiler
+- **~60 Opcode Coverage**: Every EVM opcode has a native Yul built-in equivalent — arithmetic, comparison, bitwise, memory, storage, environment, system calls (`call`, `staticcall`, `delegatecall`, `create2`), logs (`log0`–`log4`), EIP-1153 transient storage, and Cancun opcodes.
+- **Stack Propagation**: A BFS pre-pass seeds each block's stack state from its CFG predecessors.
+- **Structured Output**: While-loops emit `for { } 1 { } { if iszero(cond) { break } … }`, if/else uses dual `if`/`if iszero`, and back-edges emit `continue`.
+
+### 🛠️ Tooling
+- **Function Signature Resolution**: Extracts 4-byte selectors and resolves names via a local dictionary with `4byte.directory` API fallback.
+- **ABI Decompilation**: Infers a standard JSON ABI by tracking state mutations, calldata reads, return statements, and `LOG` events.
+- **Linear Disassembler**: Human-readable EVM instructions from the terminal.
+- **CFG Export**: DOT (Graphviz) and JSON formats with dead-code pruning.
 
 ## Installation
 
@@ -33,19 +53,20 @@ npm install
 
 ## Usage
 
-Pythia supports multiple commands. You can read raw hex EVM bytecode directly from the command line or from a file.
-
 ```bash
 node index.js <command> <hex_bytecode_or_file> [options]
 ```
 
 ### Commands
-- `cfg` : Generates a Control Flow Graph (DOT/JSON) using the Z3 symbolic engine.
-- `disasm` : Performs a fast, linear disassembly of the bytecode and prints it to the console.
-- `abi` : Symbolically executes the contract to infer and export a standard JSON ABI.
-- `ast` : Generates the Abstract Syntax Tree (AST) JSON from the Control Flow Graph.
-- `yul` : Decompiles the EVM bytecode into raw Yul source code.
-- `decompile` : Decompiles the EVM bytecode into readable Solidity-like pseudo-code, extracting individual functions.
+
+| Command | Description |
+| :--- | :--- |
+| `cfg` | Generates a Control Flow Graph (DOT/JSON) using the Z3 symbolic engine. |
+| `disasm` | Fast linear disassembly printed to the console. |
+| `abi` | Symbolically executes the contract to infer and export a standard JSON ABI. |
+| `ast` | Generates the Abstract Syntax Tree (AST) JSON from the CFG. |
+| `yul` | Decompiles EVM bytecode into structured Yul source code (~60 opcodes). |
+| `decompile` | Decompiles EVM bytecode into readable Solidity-like pseudo-code with structured if/else and while loops. |
 
 ### Options
 
@@ -53,51 +74,86 @@ node index.js <command> <hex_bytecode_or_file> [options]
 | :--- | :--- | :--- |
 | `--format` | Output format for `cfg`: `dot`, `json`, or `both`. | `both` |
 | `--out` | Base name for the output file(s) in the `out/` directory. | `cfg_output` |
-| `--max-depth`| Maximum depth for symbolic exploration (`cfg` and `abi`). | `5000` |
-| `--z3-timeout`| Timeout for the Z3 solver in milliseconds (`cfg` and `abi`). | `100` |
-| `--log-level` | Verbosity of the output (`0` for silent, `1` for info, `2` for progress loops). | `0` |
-| `--prune` | If provided, prunes unreachable basic blocks (`cfg` and `abi`). | `false` |
-| `--4bytes` | Acts as a function selector filter for the `disasm` command (extracts only signatures). | `false` |
-
-*Note: Function signature resolution is performed automatically by default for all commands. The `--4bytes` flag is exclusively used to filter the `disasm` output.*
+| `--max-depth` | Maximum depth for symbolic exploration. | `5000` |
+| `--z3-timeout` | Z3 solver timeout in milliseconds. | `100` |
+| `--log-level` | Verbosity (`0` = silent, `1` = info, `2` = progress). | `0` |
+| `--prune` | Prune unreachable basic blocks from the CFG. | `false` |
+| `--4bytes` | Filter `disasm` output to function selectors only. | `false` |
 
 ### Examples
-
-**Infer and extract a JSON ABI from a contract:**
-```bash
-node index.js abi ./smart-contract/weth.hex --log-level 1
-```
-
-**Disassemble a contract with automatic signature resolution:**
-```bash
-node index.js disasm ./smart-contract/weth.hex
-```
-
-**Extract only the available function selectors from a contract:**
-```bash
-node index.js disasm ./smart-contract/weth.hex --4bytes
-```
 
 **Decompile a contract into readable pseudo-code:**
 ```bash
 node index.js decompile ./smart-contract/weth.hex --log-level 1
 ```
 
-**Generate a DOT graph, pruning unreachable blocks and showing progress:**
+**Decompile to structured Yul:**
+```bash
+node index.js yul ./smart-contract/weth.hex
+```
+
+**Infer and extract a JSON ABI:**
+```bash
+node index.js abi ./smart-contract/weth.hex --log-level 1
+```
+
+**Disassemble with automatic signature resolution:**
+```bash
+node index.js disasm ./smart-contract/weth.hex
+```
+
+**Extract only function selectors:**
+```bash
+node index.js disasm ./smart-contract/weth.hex --4bytes
+```
+
+**Generate a pruned DOT graph with progress output:**
 ```bash
 node index.js cfg ./smart-contract/weth.hex --format dot --out weth_cfg --prune --log-level 2
 ```
 
+## Architecture
+
+```
+bytecode
+   │
+   ▼
+Disassembler ──→ Basic Blocks
+   │
+   ▼
+SymbolicEngine (Z3)
+   │  • Correct SLOAD/MLOAD (symbolic keys → free symbols)
+   │  • Per-path loop counter (state.pathVisited)
+   │  • Stable EXP/BYTE/SAR/SHA3 modelling
+   │
+   ▼
+CFGExporter (DOT / JSON)
+   │
+   ▼
+ASTBuilder
+   │  • findMergePoint() — BFS post-dominator
+   │  • Recursive If nodes (trueBranch / falseBranch sub-ASTs)
+   │  • LoopBack / While nodes with body sub-ASTs
+   │
+   ├──→ PseudoDecompiler  →  Solidity-like pseudo-code
+   │     • Structured if/else
+   │     • Auto-detected while loops
+   │
+   └──→ YulDecompiler     →  Yul source
+         • ~60 opcode coverage
+         • Stack propagation
+         • Structured for/break loops
+```
+
 ## Testing
 
-To run the test suite:
 ```bash
 npm test
 ```
 
 ## Contributing
 
-Contributions are welcome. Feel free to open an issue or submit a pull request if you'd like to improve Pythia (or make the graphs *slightly* more comprehensible).
+Contributions are welcome. Feel free to open an issue or submit a pull request.
 
 ## License
 

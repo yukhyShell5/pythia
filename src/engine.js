@@ -76,9 +76,9 @@ class SymbolicEngine {
         
         // Utilisation d'un Set pour la déduplication parfaite des états
         this.visitedStates = new Set();
-        this.visited = new Map(); 
+        // Note: loop detection is now handled per-path via state.pathVisited (Fix #3)
         
-        
+
 
         let iter = 0;
         while (this.queue.length > 0) {
@@ -107,10 +107,15 @@ class SymbolicEngine {
             this.visitedStates.add(stateHash);
 
             // --- HEURISTIQUE (Protection contre les boucles avec état changeant) ---
-            const visitCount = (this.visited.get(state.pc) || 0) + 1;
-            this.visited.set(state.pc, visitCount);
+            // Fix #3: use state.pathVisited (per-path) instead of the former global
+            // this.visited map. The global counter caused "branch starvation": if 1001
+            // different require() paths all jump to the same REVERT block, the 1001st
+            // was killed even though it was a completely valid, distinct execution path.
+            const visitCount = (state.pathVisited.get(state.pc) || 0) + 1;
+            state.pathVisited.set(state.pc, visitCount);
             if (visitCount > 1000) {
-                // On a visité ce bloc plus de 20 fois avec des états DIFFÉRENTS (ex: compteur de boucle).
+                // This individual path has looped on this PC more than 1000 times
+                // with a changing symbolic state — almost certainly an infinite loop.
                 continue;
             }
 
@@ -401,7 +406,11 @@ class SymbolicEngine {
             if (state.stack.length < 1) return;
             const offset = state.stack.pop();
             
-            let value = this.z3.BitVec.val(0, 256);
+            // Fix #2: default to null — if offset is symbolic we create a fresh
+            // unconstrained variable instead of returning the concrete 0.
+            // Returning 0 makes Z3 solve constraints with wrong memory content and
+            // causes it to explore mathematically impossible paths.
+            let value = null;
             try {
                 let key = null;
                 if (this.z3.isBitVecVal(offset)) {
@@ -416,6 +425,11 @@ class SymbolicEngine {
                     value = state.memory.get(key);
                 }
             } catch(e) {}
+            
+            // If the offset was symbolic or was never written, use a free symbol.
+            if (value === null) {
+                value = this.z3.BitVec.const(`memory_${state.pc}`, 256);
+            }
             
             state.stack.push(value);
             state.pc += 1;
@@ -455,7 +469,11 @@ class SymbolicEngine {
             if (state.stack.length < 1) return;
             const offset = state.stack.pop();
             
-            let value = this.z3.BitVec.val(0, 256);
+            // Fix #1: default to null — if key is symbolic/unknown, we create a fresh
+            // unconstrained symbolic variable instead of returning the concrete 0.
+            // Returning 0 would cause JUMPI conditions like `require(storage[x] > 0)`
+            // to always evaluate false, killing entire reachable branches.
+            let value = null;
             try {
                 let key = null;
                 if (this.z3.isBitVecVal(offset)) {
@@ -470,6 +488,11 @@ class SymbolicEngine {
                     value = state.storage.get(key);
                 }
             } catch(e) {}
+            
+            // If the key was symbolic or the slot was never written, use a free symbol.
+            if (value === null) {
+                value = this.z3.BitVec.const(`storage_${state.pc}`, 256);
+            }
             
             state.stack.push(value);
             state.pc += 1;

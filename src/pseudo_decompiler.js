@@ -291,33 +291,117 @@ class PseudoDecompiler {
 
         let out = 'contract DecompiledContract {\n\n';
 
+        /**
+         * Parcours récursif de l'AST hiérarchique produit par ASTBuilder.
+         *
+         * Gère les nœuds :
+         *  • Block     → code du basic block
+         *  • If        → if/else structuré (avec sous-ASTs trueBranch/falseBranch)
+         *                 + détection automatique du pattern while (LoopBack dans une branche)
+         *  • While     → while structuré avec sous-AST body (cas JUMPI direct back-edge)
+         *  • LoopBack  → `continue` (retour au début de la boucle courante)
+         */
         const traverseAST = (astBody, indentLevel) => {
             let res = '';
             const indent = '    '.repeat(indentLevel);
+
             for (const node of astBody) {
+
+                // ── Bloc de base ──────────────────────────────────────────────
                 if (node.type === 'Block') {
                     const block = this.blocks.find(b => b.startPc === node.pc);
                     if (block) {
                         res += `\n${indent}// Block @ PC ${node.pc}\n`;
                         res += this.decompileBlock(block, indentLevel);
                     }
+
+                // ── If / If-Else / While (via détection LoopBack) ─────────────
                 } else if (node.type === 'If') {
                     const condBlock = this.blocks.find(b => b.startPc === node.conditionBlockPc);
-                    if (condBlock) {
-                        res += `\n${indent}// If-Else Block (Cond PC: ${node.conditionBlockPc})\n`;
-                        res += this.decompileBlock(condBlock, indentLevel);
-                        const cond = condBlock.jumpCondition || 'unknown_condition';
-                        res += `${indent}if (${cond}) {\n`;
-                        res += `${indent}    goto PC_${node.trueTarget};\n`;
-                        res += `${indent}} else {\n`;
-                        res += `${indent}    goto PC_${node.falseTarget};\n`;
+                    if (!condBlock) continue;
+
+                    // Code des instructions du bloc de condition (avant le JUMPI)
+                    res += `\n${indent}// Cond @ PC ${node.conditionBlockPc}\n`;
+                    res += this.decompileBlock(condBlock, indentLevel);
+                    const cond = condBlock.jumpCondition || 'unknown_condition';
+
+                    // Détecte le pattern while :
+                    // Si la branche vraie OU la branche fausse contient un LoopBack
+                    // pointant vers ce même bloc de condition → c'est une boucle while.
+                    const condPc      = node.conditionBlockPc;
+                    const trueNodes   = node.trueBranch  ? node.trueBranch.body  : [];
+                    const falseNodes  = node.falseBranch ? node.falseBranch.body : [];
+                    const trueLoops   = trueNodes.some(n  => n.type === 'LoopBack' && n.target === condPc);
+                    const falseLoops  = falseNodes.some(n => n.type === 'LoopBack' && n.target === condPc);
+
+                    if (trueLoops || falseLoops) {
+                        // ── Pattern WHILE DÉTECTÉ ─────────────────────────────
+                        // La branche avec LoopBack = le corps de la boucle.
+                        // L'autre branche = code après la boucle (sortie).
+                        const bodyNodes = (trueLoops ? trueNodes : falseNodes)
+                            .filter(n => n.type !== 'LoopBack');
+                        const postNodes = trueLoops ? falseNodes : trueNodes;
+                        // Condition de continuation : non-nul → continue (JUMPI_TRUE = corps)
+                        const whileCond = trueLoops ? cond : `!(${cond})`;
+
+                        res += `${indent}while (${whileCond}) {\n`;
+                        res += traverseAST(bodyNodes, indentLevel + 1);
                         res += `${indent}}\n`;
+
+                        // Code de sortie (branche sans LoopBack)
+                        if (postNodes.length > 0) {
+                            res += traverseAST(postNodes, indentLevel);
+                        }
+
+                    } else {
+                        // ── IF / IF-ELSE STRUCTURÉ ────────────────────────────
+                        const hasTrueBranch  = trueNodes.length  > 0;
+                        const hasFalseBranch = falseNodes.length > 0;
+
+                        if (hasTrueBranch || hasFalseBranch) {
+                            res += `${indent}if (${cond}) {\n`;
+                            if (hasTrueBranch)  res += traverseAST(trueNodes,  indentLevel + 1);
+                            res += `${indent}}`;
+                            if (hasFalseBranch) {
+                                res += ` else {\n`;
+                                res += traverseAST(falseNodes, indentLevel + 1);
+                                res += `${indent}}`;
+                            }
+                            res += '\n';
+                        } else {
+                            // Les deux branches sont vides (terminales) → if simple avec gotos
+                            res += `${indent}if (${cond}) {\n`;
+                            res += `${indent}    goto PC_${node.trueTarget};\n`;
+                            res += `${indent}} else {\n`;
+                            res += `${indent}    goto PC_${node.falseTarget};\n`;
+                            res += `${indent}}\n`;
+                        }
                     }
+
+                // ── While direct (back-edge au niveau JUMPI) ──────────────────
+                } else if (node.type === 'While') {
+                    const condBlock = this.blocks.find(b => b.startPc === node.conditionBlockPc);
+                    if (!condBlock) continue;
+
+                    res += `\n${indent}// While-loop (header @ PC ${node.conditionBlockPc})\n`;
+                    res += this.decompileBlock(condBlock, indentLevel);
+                    const cond = condBlock.jumpCondition || 'unknown_condition';
+
+                    res += `${indent}while (${cond}) {\n`;
+                    if (node.body && node.body.body.length > 0) {
+                        res += traverseAST(node.body.body, indentLevel + 1);
+                    }
+                    res += `${indent}}\n`;
+
+                // ── LoopBack : retour au début de la boucle englobante ─────────
+                } else if (node.type === 'LoopBack') {
+                    res += `${indent}continue; // → PC_${node.target}\n`;
                 }
             }
             return res;
         };
 
+        // ── Génération par fonction ───────────────────────────────────────────
         for (const [selector, funcData] of functions.entries()) {
             out += `    function ${funcData.name}() public {\n`;
             const funcAstBuilder = new ASTBuilder(this.blocks, this.edges);
@@ -326,6 +410,7 @@ class PseudoDecompiler {
             out += '    }\n\n';
         }
 
+        // ── Fallback / dispatcher ─────────────────────────────────────────────
         out += '    fallback() payable {\n';
         const fallbackAstBuilder = new ASTBuilder(this.blocks, this.edges);
         const fallbackAst = fallbackAstBuilder.build(0, functionEntryPcs);
