@@ -113,7 +113,7 @@ class SymbolicEngine {
             // was killed even though it was a completely valid, distinct execution path.
             const visitCount = (state.pathVisited.get(state.pc) || 0) + 1;
             state.pathVisited.set(state.pc, visitCount);
-            if (visitCount > 1000) {
+            if (visitCount > 20) {
                 // This individual path has looped on this PC more than 1000 times
                 // with a changing symbolic state — almost certainly an infinite loop.
                 continue;
