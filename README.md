@@ -25,10 +25,12 @@ Pythia is a **symbolic execution engine**, **decompiler**, and **Control Flow Gr
 - **Back-Edge Safety**: Recursive sub-builders receive the parent's `inStack` as `loopHeaders`, emitting `LoopBack` instead of recursing infinitely.
 
 ### 📝 Pseudo-Code Decompiler
+- **Type Inference (Variables & Storage)**: Infers types by tracking memory writes. Seamlessly converts `MSTORE` + `SHA3` sequences into `mapping_SLOT[key]` or `array_start_SLOT`.
+- **Argument & Address Inference**: Resolves `CALLDATALOAD` offsets into `arg0, arg1, ...` and automatically casts masked values to `address(...)`.
 - **Structured if/else**: Properly indented `if (cond) { … } else { … }` — no more `goto PC_X` placeholders for conditional branches.
 - **Structured while loops**: Automatically detected and emitted as `while (cond) { … }` from the recursive AST.
 - **Function Extraction**: Identifies individual Solidity functions from the ABI dispatcher and decompiles each one separately.
-- **Expression Simplifier**: Folds constants, recognises `msg.sig`, address masks, and common Solidity patterns.
+- **Expression Simplifier**: Folds constants, recognises `msg.sig`, hides scratch memory writes, and heavily nests expressions to produce clean, readable Solidity-like code without Yul-style SSA clutter.
 
 ### 📦 Yul Decompiler
 - **~60 Opcode Coverage**: Every EVM opcode has a native Yul built-in equivalent — arithmetic, comparison, bitwise, memory, storage, environment, system calls (`call`, `staticcall`, `delegatecall`, `create2`), logs (`log0`–`log4`), EIP-1153 transient storage, and Cancun opcodes.
