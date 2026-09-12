@@ -4,6 +4,7 @@ const path = require('path');
 const { initZ3 } = require('./src/state.js');
 const { SymbolicEngine } = require('./src/engine.js');
 const { CFGExporter } = require('./src/exporter.js');
+const { fetchBytecode } = require('./src/fetcher.js');
 const { execSync } = require('child_process');
 
 // Relance automatique du script avec le flag --expose-gc pour protéger la RAM WebAssembly
@@ -38,10 +39,11 @@ Commands:
   exploit         Generate Z3 PoC/calldata to reach a specific PC
 
 Arguments:
-  input           Path to a hex file or raw hex string (required)
+  input           Path to hex file, raw hex, or 0x contract address (required)
 
 Options:
   --format        Output format: 'dot', 'json', or 'both' (default: both)
+  --rpc           RPC URL (default: https://eth.meowrpc.com)
   --out           Base name for the output file(s) (default: cfg_output)
   --max-depth     Max depth for symbolic exploration (default: 5000)
   --z3-timeout    Timeout for the Z3 solver in ms (default: 100)
@@ -73,34 +75,51 @@ Examples:
         process.exit(1);
     }
 
-    // 1. Récupération du bytecode (depuis un fichier ou directement en argument)
+
+    let logLevel = 0;
+    const logIndex = args.indexOf('--log-level');
+    if (logIndex !== -1 && args[logIndex + 1]) {
+        const parsed = parseInt(args[logIndex + 1], 10);
+        if (!isNaN(parsed)) logLevel = parsed;
+    }
+    global.logLevel = logLevel;
+
+    let rpcUrl = "https://eth.meowrpc.com";
+    const rpcIndex = args.indexOf('--rpc');
+    if (rpcIndex !== -1 && args[rpcIndex + 1]) {
+        rpcUrl = args[rpcIndex + 1];
+    }
+
+    // 1. Récupération du bytecode
     let bytecodeInput = args[1];
     let bytecodeHex = "";
 
-    const isPathLike = bytecodeInput.includes(path.sep) || bytecodeInput.includes('/') || bytecodeInput.endsWith('.hex') || bytecodeInput.endsWith('.bin');
-
-    if (isPathLike) {
-        if (!fs.existsSync(bytecodeInput)) {
-            console.error(`[-] Error: File not found at path: ${bytecodeInput}`);
+    if (bytecodeInput.startsWith('0x') && bytecodeInput.length === 42) {
+        try {
+            bytecodeHex = await fetchBytecode(bytecodeInput, rpcUrl);
+        } catch (e) {
+            console.error(`[-] Erreur lors du téléchargement: ${e.message}`);
             process.exit(1);
         }
-        if (global.logLevel >= 1) console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
-        bytecodeHex = fs.readFileSync(bytecodeInput, 'utf8').trim();
     } else {
-        if (fs.existsSync(bytecodeInput)) {
+        const isPathLike = bytecodeInput.includes(path.sep) || bytecodeInput.includes('/') || bytecodeInput.endsWith('.hex') || bytecodeInput.endsWith('.bin');
+        if (isPathLike || fs.existsSync(bytecodeInput)) {
+            if (!fs.existsSync(bytecodeInput)) {
+                console.error(`[-] Error: File not found at path: ${bytecodeInput}`);
+                process.exit(1);
+            }
             if (global.logLevel >= 1) console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
             bytecodeHex = fs.readFileSync(bytecodeInput, 'utf8').trim();
         } else {
             if (global.logLevel >= 1) console.log(`[+] Reading bytecode from command line argument.`);
             bytecodeHex = bytecodeInput.trim();
-            // Basic validation to ensure it's actually hex
             if (!/^[0-9a-fA-F]+$/.test(bytecodeHex.replace(/^0x/, ''))) {
-                 console.error(`[-] Error: The provided input is neither a valid file path nor valid hex bytecode.`);
+                 console.error(`[-] Error: Invalid input (not an address, file, or hex string).`);
                  process.exit(1);
             }
         }
     }
-
+    
     const resolve4Bytes = args.includes('--4bytes');
 
     if (command === 'disasm') {
@@ -190,15 +209,7 @@ Examples:
 
     let prune = args.includes('--prune');
 
-    let logLevel = 0;
-    const logIndex = args.indexOf('--log-level');
-    if (logIndex !== -1 && args[logIndex + 1]) {
-        const parsed = parseInt(args[logIndex + 1], 10);
-        if (!isNaN(parsed)) {
-            logLevel = parsed;
-        }
-    }
-    global.logLevel = logLevel;
+
 
     if (command === 'cfg' || command === 'abi' || command === 'ast' || command === 'yul' || command === 'decompile' || command === 'exploit') {
         // 3. Préparation du dossier de sortie (out/)
