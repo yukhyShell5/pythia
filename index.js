@@ -35,6 +35,7 @@ Commands:
   ast             Generate the Abstract Syntax Tree (AST) JSON from CFG
   yul             Decompile EVM bytecode into Yul source code
   decompile       Decompile EVM bytecode into readable pseudo-code
+  exploit         Generate Z3 PoC/calldata to reach a specific PC
 
 Arguments:
   input           Path to a hex file or raw hex string (required)
@@ -46,6 +47,7 @@ Options:
   --z3-timeout    Timeout for the Z3 solver in ms (default: 100)
   --prune         Remove unreachable basic blocks from the graph
   --4bytes        Resolve 4-byte function signatures (disasm command)
+  --target        Target PC (in decimal) to generate exploit for (exploit command)
   -h, --help      Show this help message
 
 Examples:
@@ -61,7 +63,7 @@ Examples:
     }
 
     const command = args[0];
-    if (!['cfg', 'disasm', 'abi', 'ast', 'yul', 'decompile'].includes(command)) {
+    if (!['cfg', 'disasm', 'abi', 'ast', 'yul', 'decompile', 'exploit'].includes(command)) {
         console.error(`[-] Error: Unknown command '${command}'. Supported commands are 'cfg', 'disasm', 'abi', 'ast', 'yul', and 'decompile'.`);
         process.exit(1);
     }
@@ -198,7 +200,7 @@ Examples:
     }
     global.logLevel = logLevel;
 
-    if (command === 'cfg' || command === 'abi' || command === 'ast' || command === 'yul' || command === 'decompile') {
+    if (command === 'cfg' || command === 'abi' || command === 'ast' || command === 'yul' || command === 'decompile' || command === 'exploit') {
         // 3. Préparation du dossier de sortie (out/)
         const outDir = path.join(__dirname, 'out');
         if (!fs.existsSync(outDir)) {
@@ -211,9 +213,36 @@ Examples:
 
         if (logLevel >= 1) console.log("[+] Running symbolic exploration (this may take a while on large contracts)...");
         
+        // Parse target if command is exploit
+        let targetPc = null;
+        if (command === 'exploit') {
+            const targetIndex = args.indexOf('--target');
+            if (targetIndex === -1 || !args[targetIndex + 1]) {
+                console.error("Erreur : --target <pc> est requis pour la commande exploit.");
+                process.exit(1);
+            }
+            targetPc = parseInt(args[targetIndex + 1], 10);
+            if (isNaN(targetPc)) {
+                console.error("Erreur : --target doit être un nombre décimal valide.");
+                process.exit(1);
+            }
+        }
+
         // On met la limite de profondeur choisie (par défaut 5000)
         const engine = new SymbolicEngine(bytecodeHex, z3, maxDepth); 
-        await engine.run();
+        const poc = await engine.run(targetPc);
+        
+        if (command === 'exploit') {
+            if (poc) {
+                console.log("\n\x1b[32m[SUCCESS] Chemin vulnérable (SAT) vers PC " + targetPc + " trouvé !\x1b[0m");
+                console.log("=== EXPLOIT / POC ===");
+                console.log(JSON.stringify(poc, null, 2));
+                console.log("=====================\n");
+            } else {
+                console.log("\n\x1b[31m[FAILED] Impossible de trouver un chemin (UNSAT) ou bloc inatteignable.\x1b[0m\n");
+            }
+            process.exit(0);
+        }
 
         if (logLevel >= 1) console.log(`[+] Exploration complete!`);
         
@@ -221,7 +250,8 @@ Examples:
         const { Disassembler } = require('./src/disassembler.js');
         await Disassembler.resolveSignatures(engine.basicBlocks);
 
-        if (command === 'cfg') {
+    
+    if (command === 'cfg') {
             // 5. Exportation CFG
             const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
             

@@ -69,7 +69,7 @@ class SymbolicEngine {
     /**
      * Boucle principale de l'exécution symbolique.
      */
-    async run() {
+    async run(targetPc = null) {
         const initialState = new SymbolicState(this.z3);
         initialState.pc = 0;
         this.queue.push(initialState);
@@ -94,6 +94,13 @@ class SymbolicEngine {
             }
             
             let state = this.queue.pop();
+
+            // --- POC GENERATION ---
+            if (targetPc !== null && state.pc === targetPc) {
+                const poc = await this.generatePoC(state);
+                if (poc) return poc;
+            }
+
             if (state.pc >= this.bytecode.length) {
                 continue; 
             }
@@ -596,6 +603,52 @@ class SymbolicEngine {
         state.pc += 1;
         this.queue.push(state);
     }
+
+    /**
+     * Génère un exploit/PoC (valeurs concrètes du calldata/stack) pour atteindre cet état.
+     */
+    async generatePoC(state) {
+        if (global.logLevel >= 1) console.log(`[PoC] Target PC=${state.pc} reached! Solving path constraints...`);
+        this.solver.reset();
+        for (const constraint of state.pathConstraints) {
+            this.solver.add(constraint);
+        }
+        
+        const status = await this.solver.check();
+        if (status === "sat") {
+            const model = this.solver.model();
+            const poc = {
+                status: "sat",
+                pc: state.pc,
+                calldata: {},
+                environment: {},
+                memory: {},
+                storage: {}
+            };
+            
+            const decls = model.decls();
+            for (let i = 0; i < decls.length; i++) {
+                const decl = decls[i];
+                const name = decl.name().toString();
+                const symAst = this.z3.BitVec.const(name, 256);
+                const valueAst = model.eval(symAst, true);
+                let value = "unknown";
+                try {
+                    value = '0x' + BigInt(valueAst.value().toString()).toString(16);
+                } catch(e) {}
+                
+                if (name.startsWith('calldata_')) poc.calldata[name] = value;
+                else if (name.startsWith('memory_')) poc.memory[name] = value;
+                else if (name.startsWith('storage_')) poc.storage[name] = value;
+                else poc.environment[name] = value;
+            }
+            return poc;
+        } else {
+            if (global.logLevel >= 1) console.log(`[PoC] Path to PC=${state.pc} is ${status} (Unreachable in this path).`);
+            return null;
+        }
+    }
+
 }
 
 module.exports = {
