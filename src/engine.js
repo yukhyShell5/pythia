@@ -243,7 +243,12 @@ class SymbolicEngine {
         if (opcode === 0x35) {
             if (state.stack.length < 1) return;
             const offsetAst = state.stack.pop();
-            const symVarName = `calldata_pc${state.pc}`;
+            let symVarName = `calldata_pc${state.pc}`;
+            try {
+                if (this.z3.isBitVecVal(offsetAst)) {
+                    symVarName = `calldata_${offsetAst.value().toString()}`;
+                }
+            } catch(e) {}
             const symbolicX = this.z3.BitVec.const(symVarName, 256);
             state.stack.push(symbolicX);
             state.pc += 1;
@@ -620,10 +625,12 @@ class SymbolicEngine {
             const poc = {
                 status: "sat",
                 pc: state.pc,
+                calldata_hex: "0x",
                 calldata: {},
                 environment: {},
                 memory: {},
-                storage: {}
+                storage: {},
+                path_constraints: state.pathConstraints.map(c => c.toString().replace(/\n/g, ' ').replace(/\s+/g, ' '))
             };
             
             const decls = model.decls();
@@ -642,6 +649,44 @@ class SymbolicEngine {
                 else if (name.startsWith('storage_')) poc.storage[name] = value;
                 else poc.environment[name] = value;
             }
+            
+            // Reconstruct full calldata hex string if offsets are known
+            let calldataBuffer = [];
+            for (const [key, value] of Object.entries(poc.calldata)) {
+                if (key.startsWith('calldata_') && !key.startsWith('calldata_pc')) {
+                    const offset = parseInt(key.replace('calldata_', ''), 10);
+                    if (!isNaN(offset)) {
+                        let hexVal = value.replace('0x', '');
+                        hexVal = hexVal.padStart(64, '0');
+                        calldataBuffer.push({ offset, hexVal });
+                    }
+                }
+            }
+            
+            if (calldataBuffer.length > 0) {
+                calldataBuffer.sort((a, b) => a.offset - b.offset);
+                let finalHex = "";
+                let currentOffset = 0;
+                for (const chunk of calldataBuffer) {
+                    if (chunk.offset > currentOffset) {
+                        finalHex += "00".repeat(chunk.offset - currentOffset);
+                    }
+                    finalHex += chunk.hexVal;
+                    currentOffset = chunk.offset + 32;
+                }
+                
+                // Truncate trailing zeros if it was just a 4-byte selector padded to 32 bytes
+                if (poc.environment.calldatasize && poc.environment.calldatasize !== "unknown") {
+                    const size = parseInt(poc.environment.calldatasize, 16);
+                    if (!isNaN(size) && size * 2 <= finalHex.length) {
+                        finalHex = finalHex.substring(0, size * 2);
+                    }
+                }
+                poc.calldata_hex = "0x" + finalHex;
+            } else if (Object.keys(poc.calldata).length > 0) {
+                poc.calldata_hex = "0x... (Offsets unconcrets, voir calldata brut)";
+            }
+
             return poc;
         } else {
             if (global.logLevel >= 1) console.log(`[PoC] Path to PC=${state.pc} is ${status} (Unreachable in this path).`);
