@@ -67,7 +67,14 @@ class CFGExporter {
      * Exporte les arêtes et blocs au format JSON pur.
      */
     toJson() {
-        return JSON.stringify({ blocks: this.blocks, edges: this.edges }, null, 2);
+        // Exporter avec pseudoCode si disponible
+        const enrichedBlocks = this.blocks.map(b => ({
+            startPc: b.startPc,
+            instructions: b.instructions,
+            pseudoCode: b.pseudoCode,
+            jumpCondition: b.jumpCondition
+        }));
+        return JSON.stringify({ blocks: enrichedBlocks, edges: this.edges }, null, 2);
     }
 
     /**

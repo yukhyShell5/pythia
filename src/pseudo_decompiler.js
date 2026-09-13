@@ -195,6 +195,15 @@ class PseudoDecompiler {
         } else if (ins.opcode === 0x56) { // JUMP
             const dest = stack.pop() || 'loc_dest';
             return 'goto PC_' + dest + ';\n';
+        } else if (ins.opcode === 0xff) { // SELFDESTRUCT
+            const beneficiary = stack.pop() || 'loc_addr';
+            return 'selfdestruct(' + beneficiary + ');\n';
+        } else if (ins.opcode === 0xf1) { // CALL
+            const gas = stack.pop(); const addr = stack.pop(); const val = stack.pop();
+            const argsOffset = stack.pop(); const argsLen = stack.pop();
+            const retOffset = stack.pop(); const retLen = stack.pop();
+            stack.push('success');
+            return 'call(' + addr + ', ' + val + ', memory[' + argsOffset + ':' + argsLen + ']);\n';
         } else {
             const { getStackEffect } = require('./stack_effects.js');
             const effect = getStackEffect(ins.opcode);
@@ -206,6 +215,14 @@ class PseudoDecompiler {
         }
     }
 
+
+    identifyFunctions() {
+        const functions = new Map();
+        const functionEntryPcs = new Set([0]);
+        // Simple fallback
+        return { functions, functionEntryPcs };
+    }
+    
     propagateStacks(functionEntryPcs) {
         const queue = [];
         for (const entry of functionEntryPcs) {

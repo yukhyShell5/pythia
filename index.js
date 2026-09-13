@@ -263,6 +263,15 @@ Examples:
 
     
     if (command === 'cfg') {
+            // --- Enrichir le CFG avec le Pseudo-code ---
+            const { PseudoDecompiler } = require('./src/pseudo_decompiler.js');
+            const decompiler = new PseudoDecompiler(engine.basicBlocks, engine.cfgEdges);
+            const { functionEntryPcs } = decompiler.identifyFunctions();
+            decompiler.propagateStacks(functionEntryPcs);
+            for (const block of engine.basicBlocks) {
+                block.pseudoCode = decompiler.decompileBlock(block, 0).trim();
+            }
+
             // 5. Exportation CFG
             const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
             
