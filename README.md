@@ -88,6 +88,7 @@ node index.js <command> <hex_bytecode_or_file> [options]
 | `--out` | Base name for the output file(s) in the `out/` directory. | `cfg_output` |
 | `--rpc` | Custom RPC URL used when fetching a contract by address. | `https://eth.meowrpc.com` |
 | `--target` | Target Program Counter (decimal) used by the `exploit` command. | - |
+| `--tx-depth` | Maximum number of chained transactions to explore symbolically. | `1` |
 | `--max-depth` | Maximum depth for symbolic exploration. | `5000` |
 | `--z3-timeout` | Z3 solver timeout in milliseconds. | `100` |
 | `--log-level` | Verbosity (`0` = silent, `1` = info, `2` = progress). | `0` |
@@ -119,6 +120,11 @@ node index.js disasm ./smart-contract/weth.hex
 **Generate an Exploit (PoC) to reach PC 68:**
 ```bash
 node index.js exploit ./smart-contract/vuln.hex --target 68
+```
+
+**Generate a Multi-Transaction Exploit (e.g. deposit then withdraw):**
+```bash
+node index.js exploit ./smart-contract/multitx.hex --target 52 --tx-depth 2
 ```
 
 **Decompile a contract directly from Mainnet (Auto-resolves EIP-1967 Proxies):**

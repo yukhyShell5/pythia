@@ -34,8 +34,16 @@ class SymbolicState {
         this.pc = 0;                  // Program Counter
         this.depth = 0;               // Nombre d'instructions exécutées (Sécurité)
         this.stack = [];              // La Pile (Z3.BitVec)
-        this.pathConstraints = [];    // Les équations logiques
+        this.pathConstraints = [];    // Les équations logiques (de la Tx courante)
         this.pathVisited = new Map(); // pc -> count pour cette branche
+
+        // === MULTI-TRANSACTION ===
+        // txIndex    : index de la transaction courante (0-based: 0=Tx1, 1=Tx2, ...)
+        // txHistory  : historique des transactions précédentes
+        //              Chaque entrée : { constraints: [], storageSnapshot: Map }
+        //              Permet au PoC de restituer chaque transaction séparément.
+        this.txIndex = 0;
+        this.txHistory = [];
         
         // MÉMOIRE & STORAGE SYMBOLIQUES (Hybrid Map)
         // On utilise un Map JS pour éviter l'explosion de l'AST (OOM) 
@@ -54,12 +62,19 @@ class SymbolicState {
         newState.pc = this.pc;
         newState.depth = this.depth;
         
-        // La pile et les contraintes doivent être copiées en surface (les AST Z3 sont immuables)
+        // La pile et les contraintes sont copiées en surface (les AST Z3 sont immuables)
         newState.stack = [...this.stack];
         newState.pathConstraints = [...this.pathConstraints];
         newState.pathVisited = new Map(this.pathVisited);
+
+        // Multi-transaction : transmettre l'intégralité du contexte inter-Tx
+        newState.txIndex   = this.txIndex;
+        newState.txHistory = this.txHistory.map(h => ({
+            constraints:     [...h.constraints],
+            storageSnapshot: new Map(h.storageSnapshot)
+        }));
         
-        // Copie des Maps
+        // Copie des Maps de la Tx courante
         newState.memory = new Map(this.memory);
         newState.storage = new Map(this.storage);
         newState.tstorage = new Map(this.tstorage);
@@ -78,7 +93,9 @@ class SymbolicState {
         // On utilise `.ast` (l'identifiant entier du noeud C++) plutôt que `.toString()` 
         // pour que le calcul du hash soit instantané (O(1)) au lieu de parabolique.
         const stackStr = this.stack.map(x => x.ast).join('|');
-        return `${this.pc}::${stackStr}`;
+        // txIndex est inclus pour que le même (PC+stack) exploré en Tx1
+        // ne supprime pas l'exploration du même (PC+stack) en Tx2.
+        return `tx${this.txIndex}::${this.pc}::${stackStr}`;
     }
 }
 

@@ -4,7 +4,7 @@ const { Disassembler, getMnemonic } = require('./disassembler.js');
 const { getStackEffect } = require('./stack_effects.js');
 
 class SymbolicEngine {
-    constructor(bytecodeHex, z3Context, maxDepth = 1000) {
+    constructor(bytecodeHex, z3Context, maxDepth = 1000, txDepth = 1) {
         this.z3 = z3Context;
         this.solver = new this.z3.Solver(); // ONE global solver to prevent memory leaks
         this.mathOpcodes = getMathOpcodes(this.z3);
@@ -21,6 +21,7 @@ class SymbolicEngine {
         
         this.queue = [];
         this.MAX_DEPTH = maxDepth;
+        this.TX_DEPTH  = txDepth; // nombre maximum de transactions à chaîner
     }
 
     /**
@@ -202,10 +203,39 @@ class SymbolicEngine {
             return;
         }
 
-        // === FAMILLE : HALT / FIN (0x00, 0xF3, 0xFD, 0xFE, 0xFF) ===
+        // === FAMILLE : HALT / FIN ===
         if (opcode === 0x00 || opcode === 0xf3 || opcode === 0xfd || opcode === 0xfe || opcode === 0xff) {
-            // C'est une fin de chemin valide (STOP, RETURN, REVERT, INVALID, SELFDESTRUCT).
-            // L'état est détruit (on ne le remet PAS dans la file).
+            // REVERT (0xfd) et INVALID (0xfe) terminent toujours ce chemin sans continuer.
+            if (opcode === 0xfd || opcode === 0xfe) return;
+
+            // STOP (0x00), RETURN (0xf3), SELFDESTRUCT (0xff) :
+            // Si on n'a pas encore atteint la profondeur multi-Tx souhaitée, on lance la Tx suivante.
+            if (state.txIndex < this.TX_DEPTH - 1) {
+                // 1. Archiver la transaction courante dans l'historique
+                state.txHistory.push({
+                    txIndex:         state.txIndex,
+                    constraints:     [...state.pathConstraints],
+                    storageSnapshot: new Map(state.storage)
+                });
+
+                // 2. Construire le nouvel état (Tx+1)
+                const nextState = new SymbolicState(this.z3);
+                nextState.txIndex   = state.txIndex + 1;
+                nextState.txHistory = state.txHistory; // on hérite de l'historique
+                nextState.pc        = 0;               // redémarrage depuis l'entrée
+                nextState.depth     = 0;
+                // Le storage persiste entre les transactions (c'est toute la blockchain)
+                nextState.storage   = new Map(state.storage);
+                // Les contraintes de la Tx précédente RESTENT actives dans le solveur
+                // On les encode comme des "faits établis" dans les contraintes de la Tx suivante
+                nextState.pathConstraints = [...state.pathConstraints];
+
+                if (global.logLevel >= 1) {
+                    console.log(`[MultiTx] 🔗 Tx${state.txIndex + 1} terminée → lancement Tx${state.txIndex + 2}`);
+                }
+                this.queue.push(nextState);
+            }
+            // Fin de chemin dans tous les cas (on ne re-pousse pas state)
             return;
         }
         
@@ -243,10 +273,11 @@ class SymbolicEngine {
         if (opcode === 0x35) {
             if (state.stack.length < 1) return;
             const offsetAst = state.stack.pop();
-            let symVarName = `calldata_pc${state.pc}`;
+            // Préfixe tx{N}_ pour que les entrées de chaque transaction restent indépendantes
+            let symVarName = `tx${state.txIndex}_calldata_pc${state.pc}`;
             try {
                 if (this.z3.isBitVecVal(offsetAst)) {
-                    symVarName = `calldata_${offsetAst.value().toString()}`;
+                    symVarName = `tx${state.txIndex}_calldata_${offsetAst.value().toString()}`;
                 }
             } catch(e) {}
             const symbolicX = this.z3.BitVec.const(symVarName, 256);
@@ -258,7 +289,7 @@ class SymbolicEngine {
 
         // CALLDATASIZE (0x36)
         if (opcode === 0x36) {
-            const symVarName = `calldatasize`;
+            const symVarName = `tx${state.txIndex}_calldatasize`;
             const symbolicX = this.z3.BitVec.const(symVarName, 256);
             state.stack.push(symbolicX);
             state.pc += 1;
@@ -268,7 +299,7 @@ class SymbolicEngine {
 
         // CALLVALUE (0x34)
         if (opcode === 0x34) {
-            const symVarName = `callvalue`;
+            const symVarName = `tx${state.txIndex}_callvalue`;
             const symbolicX = this.z3.BitVec.const(symVarName, 256);
             state.stack.push(symbolicX);
             state.pc += 1;
@@ -611,90 +642,123 @@ class SymbolicEngine {
 
     /**
      * Génère un exploit/PoC (valeurs concrètes du calldata/stack) pour atteindre cet état.
+     * Supporte le mode multi-transaction (txHistory).
      */
     async generatePoC(state) {
-        if (global.logLevel >= 1) console.log(`[PoC] Target PC=${state.pc} reached! Solving path constraints...`);
+        if (global.logLevel >= 1) console.log(`[PoC] Target PC=${state.pc} reached on Tx${state.txIndex + 1}! Solving path constraints...`);
         this.solver.reset();
         for (const constraint of state.pathConstraints) {
             this.solver.add(constraint);
         }
         
         const status = await this.solver.check();
-        if (status === "sat") {
-            const model = this.solver.model();
-            const poc = {
-                status: "sat",
-                pc: state.pc,
-                calldata_hex: "0x",
-                calldata: {},
-                environment: {},
-                memory: {},
-                storage: {},
-                path_constraints: state.pathConstraints.map(c => c.toString().replace(/\n/g, ' ').replace(/\s+/g, ' '))
-            };
-            
-            const decls = model.decls();
-            for (let i = 0; i < decls.length; i++) {
-                const decl = decls[i];
-                const name = decl.name().toString();
-                const symAst = this.z3.BitVec.const(name, 256);
-                const valueAst = model.eval(symAst, true);
-                let value = "unknown";
-                try {
-                    value = '0x' + BigInt(valueAst.value().toString()).toString(16);
-                } catch(e) {}
-                
-                if (name.startsWith('calldata_')) poc.calldata[name] = value;
-                else if (name.startsWith('memory_')) poc.memory[name] = value;
-                else if (name.startsWith('storage_')) poc.storage[name] = value;
-                else poc.environment[name] = value;
-            }
-            
-            // Reconstruct full calldata hex string if offsets are known
-            let calldataBuffer = [];
-            for (const [key, value] of Object.entries(poc.calldata)) {
-                if (key.startsWith('calldata_') && !key.startsWith('calldata_pc')) {
-                    const offset = parseInt(key.replace('calldata_', ''), 10);
-                    if (!isNaN(offset)) {
-                        let hexVal = value.replace('0x', '');
-                        hexVal = hexVal.padStart(64, '0');
-                        calldataBuffer.push({ offset, hexVal });
-                    }
-                }
-            }
-            
-            if (calldataBuffer.length > 0) {
-                calldataBuffer.sort((a, b) => a.offset - b.offset);
-                let finalHex = "";
-                let currentOffset = 0;
-                for (const chunk of calldataBuffer) {
-                    if (chunk.offset > currentOffset) {
-                        finalHex += "00".repeat(chunk.offset - currentOffset);
-                    }
-                    finalHex += chunk.hexVal;
-                    currentOffset = chunk.offset + 32;
-                }
-                
-                // Truncate trailing zeros if it was just a 4-byte selector padded to 32 bytes
-                if (poc.environment.calldatasize && poc.environment.calldatasize !== "unknown") {
-                    const size = parseInt(poc.environment.calldatasize, 16);
-                    if (!isNaN(size) && size * 2 <= finalHex.length) {
-                        finalHex = finalHex.substring(0, size * 2);
-                    }
-                }
-                poc.calldata_hex = "0x" + finalHex;
-            } else if (Object.keys(poc.calldata).length > 0) {
-                poc.calldata_hex = "0x... (Offsets unconcrets, voir calldata brut)";
-            }
-
-            return poc;
-        } else {
+        if (status !== "sat") {
             if (global.logLevel >= 1) console.log(`[PoC] Path to PC=${state.pc} is ${status} (Unreachable in this path).`);
             return null;
         }
+
+        const model = this.solver.model();
+
+        // --- Extraction des valeurs concrètes depuis le modèle Z3 ---
+        const resolved = {};  // name -> hex value
+        const decls = model.decls();
+        for (let i = 0; i < decls.length; i++) {
+            const decl  = decls[i];
+            const name  = decl.name().toString();
+            const symAst = this.z3.BitVec.const(name, 256);
+            const valueAst = model.eval(symAst, true);
+            try {
+                resolved[name] = '0x' + BigInt(valueAst.value().toString()).toString(16);
+            } catch(e) {
+                resolved[name] = 'unknown';
+            }
+        }
+
+        // --- Helper : reconstruit le calldata hex pour une Tx donnée ---
+        const buildCalldataHex = (txIdx) => {
+            const prefix   = `tx${txIdx}_calldata_`;
+            const pcPrefix = `tx${txIdx}_calldata_pc`;
+            const chunks   = [];
+
+            for (const [key, value] of Object.entries(resolved)) {
+                if (key.startsWith(prefix) && !key.startsWith(pcPrefix)) {
+                    const offset = parseInt(key.replace(prefix, ''), 10);
+                    if (!isNaN(offset)) {
+                        chunks.push({ offset, hex: value.replace('0x', '').padStart(64, '0') });
+                    }
+                }
+            }
+
+            if (chunks.length === 0) return null;
+            chunks.sort((a, b) => a.offset - b.offset);
+
+            let finalHex = '';
+            let cur = 0;
+            for (const c of chunks) {
+                if (c.offset > cur) finalHex += '00'.repeat(c.offset - cur);
+                finalHex += c.hex;
+                cur = c.offset + 32;
+            }
+
+            const sizeKey = `tx${txIdx}_calldatasize`;
+            if (resolved[sizeKey] && resolved[sizeKey] !== 'unknown') {
+                const size = parseInt(resolved[sizeKey], 16);
+                if (!isNaN(size) && size * 2 <= finalHex.length) finalHex = finalHex.substring(0, size * 2);
+            }
+            return '0x' + finalHex;
+        };
+
+        // --- Construire le tableau transactions ---
+        const totalTxCount = state.txIndex + 1;
+        const transactions = [];
+
+        for (let t = 0; t < totalTxCount; t++) {
+            const prefix = `tx${t}_`;
+            const txEntry = {
+                tx:           t + 1,
+                calldata_hex: buildCalldataHex(t) || '0x',
+                inputs:       {},
+            };
+
+            for (const [key, value] of Object.entries(resolved)) {
+                if (key.startsWith(prefix)) {
+                    txEntry.inputs[key] = value;
+                }
+            }
+
+            // Diff storage si on a l'historique
+            if (t < state.txHistory.length) {
+                const snap  = state.txHistory[t].storageSnapshot;
+                const diffs = {};
+                for (const [k, _v] of snap) diffs[`slot_${k}`] = `written`;
+                txEntry.storage_writes = diffs;
+            }
+
+            transactions.push(txEntry);
+        }
+
+        // Storage final (état de la blockchain après toutes les Tx)
+        const finalStorage = {};
+        for (const [key, value] of Object.entries(resolved)) {
+            if (key.startsWith('storage_')) finalStorage[key] = value;
+        }
+
+        const poc = {
+            status:           'sat',
+            target_pc:        state.pc,
+            tx_depth:         totalTxCount,
+            transactions,
+            final_storage:    finalStorage,
+            path_constraints: state.pathConstraints.map(c =>
+                c.toString().replace(/\n/g, ' ').replace(/\s+/g, ' ')
+            )
+        };
+
+        return poc;
     }
 
 }
+
 
 module.exports = {
     SymbolicEngine

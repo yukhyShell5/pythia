@@ -218,14 +218,9 @@ Examples:
             fs.mkdirSync(outDir);
         }
 
-        // 4. Lancement du moteur Z3
-        if (logLevel >= 1) console.log("[+] Initializing Z3 solver...");
-        const z3 = await initZ3(z3Timeout);
-
-        if (logLevel >= 1) console.log("[+] Running symbolic exploration (this may take a while on large contracts)...");
-        
-        // Parse target if command is exploit
+        // Parse target/txDepth BEFORE initialising Z3 so the timeout can be adjusted
         let targetPc = null;
+        let txDepth  = 1;
         if (command === 'exploit') {
             const targetIndex = args.indexOf('--target');
             if (targetIndex === -1 || !args[targetIndex + 1]) {
@@ -237,11 +232,31 @@ Examples:
                 console.error("Erreur : --target doit être un nombre décimal valide.");
                 process.exit(1);
             }
+            const txDepthIndex = args.indexOf('--tx-depth');
+            if (txDepthIndex !== -1 && args[txDepthIndex + 1]) {
+                const parsed = parseInt(args[txDepthIndex + 1], 10);
+                if (!isNaN(parsed) && parsed >= 1) txDepth = parsed;
+            }
+            // En mode multi-tx, les contraintes s'accumulent → on augmente le timeout Z3
+            // si l'utilisateur n'a pas spécifié explicitement --z3-timeout
+            if (txDepth > 1 && !args.includes('--z3-timeout')) {
+                z3Timeout = 2000 * txDepth;
+                if (logLevel >= 1) console.log(`[MultiTx] Timeout Z3 auto-ajusté à ${z3Timeout}ms pour tx-depth=${txDepth}`);
+            }
+            if (logLevel >= 1 && txDepth > 1) {
+                console.log(`[MultiTx] Mode multi-transaction activé : profondeur = ${txDepth}`);
+            }
         }
 
-        // On met la limite de profondeur choisie (par défaut 5000)
-        const engine = new SymbolicEngine(bytecodeHex, z3, maxDepth); 
+        // 4. Lancement du moteur Z3 (avec le bon timeout)
+        if (logLevel >= 1) console.log("[+] Initializing Z3 solver...");
+        const z3 = await initZ3(z3Timeout);
+
+        if (logLevel >= 1) console.log("[+] Running symbolic exploration (this may take a while on large contracts)...");
+
+        const engine = new SymbolicEngine(bytecodeHex, z3, maxDepth, txDepth);
         const poc = await engine.run(targetPc);
+
         
         if (command === 'exploit') {
             if (poc) {
