@@ -8,18 +8,18 @@ let z3Context = null;
  */
 async function initZ3(timeoutMs = 10000) {
     if (!z3Context) {
-        if (global.logLevel >= 1) console.log("[Z3] Initializing solver...");
+        if (globalThis.logLevel >= 1) console.log("[Z3] Initializing solver...");
         const { Context, setParam } = await init();
         
         // Configuration du timeout global pour éviter les blocages sur des chemins complexes
         if (typeof setParam === 'function') {
             setParam('timeout', timeoutMs);
-            if (global.logLevel >= 1) console.log(`[Z3] Global timeout configured to ${timeoutMs}ms.`);
+            if (globalThis.logLevel >= 1) console.log(`[Z3] Global timeout configured to ${timeoutMs}ms.`);
         }
 
         // Création d'un contexte principal pour générer nos variables symboliques
         z3Context = new Context('main');
-        if (global.logLevel >= 1) console.log("[Z3] Solver initialized successfully.");
+        if (globalThis.logLevel >= 1) console.log("[Z3] Solver initialized successfully.");
     }
     return z3Context;
 }

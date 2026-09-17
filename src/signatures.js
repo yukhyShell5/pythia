@@ -1,4 +1,9 @@
-const https = require('https');
+const fs = require('fs');
+const path = require('path');
+let https;
+if (typeof window === 'undefined') {
+    https = require('https');
+}
 
 // Dictionnaire local des signatures les plus communes (ERC20, ERC721, ERC1155, AccessControl, etc.)
 // Cela évite de spammer l'API 4byte pour les fonctions standards.
@@ -62,29 +67,50 @@ async function resolveSignature(hexSignature) {
     // 3. Fallback to 4byte.directory API
     return new Promise((resolve) => {
         const url = `https://www.4byte.directory/api/v1/signatures/?hex_signature=${hexSignature}`;
-        https.get(url, (res) => {
-            let data = '';
-            res.on('data', chunk => { data += chunk; });
-            res.on('end', () => {
-                try {
-                    const parsed = JSON.parse(data);
-                    if (parsed.results && parsed.results.length > 0) {
-                        // On prend le résultat le plus ancien/standard
-                        const textSignature = parsed.results[parsed.results.length - 1].text_signature;
-                        cache.set(hexSignature, textSignature);
-                        resolve(textSignature);
-                    } else {
+        
+        if (typeof window !== 'undefined') {
+            // Browser env
+            fetch(url).then(res => res.json()).then(json => {
+                if (json && json.results && json.results.length > 0) {
+                    const sorted = json.results.sort((a, b) => a.id - b.id);
+                    const name = sorted[0].text_signature;
+                    cache.set(hexSignature, name);
+                    resolve(name);
+                } else {
+                    cache.set(hexSignature, null);
+                    resolve(null);
+                }
+            }).catch(() => {
+                cache.set(hexSignature, null);
+                resolve(null);
+            });
+        } else {
+            // Node env
+            https.get(url, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                    try {
+                        const json = JSON.parse(data);
+                        if (json && json.results && json.results.length > 0) {
+                            const sorted = json.results.sort((a, b) => a.id - b.id);
+                            const name = sorted[0].text_signature;
+                            cache.set(hexSignature, name);
+                            resolve(name);
+                        } else {
+                            cache.set(hexSignature, null);
+                            resolve(null);
+                        }
+                    } catch (e) {
                         cache.set(hexSignature, null);
                         resolve(null);
                     }
-                } catch (e) {
-                    resolve(null);
-                }
+                });
+            }).on('error', (e) => {
+                cache.set(hexSignature, null);
+                resolve(null);
             });
-        }).on('error', () => {
-            // Ignorer silencieusement les erreurs réseau (ex: pas de connexion)
-            resolve(null);
-        });
+        }
     });
 }
 

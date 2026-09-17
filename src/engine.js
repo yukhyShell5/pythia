@@ -85,10 +85,10 @@ class SymbolicEngine {
         while (this.queue.length > 0) {
             iter++;
             if (iter % 1000 === 0) {
-                if (global.logLevel >= 2) console.log(`[+] Visited ${this.visitedStates.size} states (Queue: ${this.queue.length}, Depth: ${this.queue[this.queue.length-1].depth})`);
+                if (globalThis.logLevel >= 2) console.log(`[+] Visited ${this.visitedStates.size} states (Queue: ${this.queue.length}, Depth: ${this.queue[this.queue.length-1].depth})`);
                 // Forcer le ramasse-miettes V8 pour nettoyer les vieux ASTs C++ si l'option est activée
-                if (global.gc) {
-                    global.gc();
+                if (globalThis.gc) {
+                    globalThis.gc();
                 }
                 // Rendre la main à l'event loop pour le background GC
                 await new Promise(r => setTimeout(r, 0));
@@ -230,7 +230,7 @@ class SymbolicEngine {
                 // On les encode comme des "faits établis" dans les contraintes de la Tx suivante
                 nextState.pathConstraints = [...state.pathConstraints];
 
-                if (global.logLevel >= 1) {
+                if (globalThis.logLevel >= 1) {
                     console.log(`[MultiTx] 🔗 Tx${state.txIndex + 1} terminée → lancement Tx${state.txIndex + 2}`);
                 }
                 this.queue.push(nextState);
@@ -645,7 +645,7 @@ class SymbolicEngine {
      * Supporte le mode multi-transaction (txHistory).
      */
     async generatePoC(state) {
-        if (global.logLevel >= 1) console.log(`[PoC] Target PC=${state.pc} reached on Tx${state.txIndex + 1}! Solving path constraints...`);
+        if (globalThis.logLevel >= 1) console.log(`[PoC] Target PC=${state.pc} reached on Tx${state.txIndex + 1}! Solving path constraints...`);
         this.solver.reset();
         for (const constraint of state.pathConstraints) {
             this.solver.add(constraint);
@@ -653,7 +653,7 @@ class SymbolicEngine {
         
         const status = await this.solver.check();
         if (status !== "sat") {
-            if (global.logLevel >= 1) console.log(`[PoC] Path to PC=${state.pc} is ${status} (Unreachable in this path).`);
+            if (globalThis.logLevel >= 1) console.log(`[PoC] Path to PC=${state.pc} is ${status} (Unreachable in this path).`);
             return null;
         }
 

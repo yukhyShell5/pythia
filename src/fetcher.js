@@ -15,7 +15,7 @@ async function rpcCall(rpcUrl, method, params) {
  * et résout l'adresse de l'implémentation logique sous-jacente.
  */
 async function fetchBytecode(address, rpcUrl) {
-    if (global.logLevel >= 1) console.log(`[Fetcher] Interrogation RPC pour ${address}...`);
+    if (globalThis.logLevel >= 1) console.log(`[Fetcher] Interrogation RPC pour ${address}...`);
     
     // Slot de stockage standard pour l'implémentation des proxies EIP-1967
     const EIP1967_IMPL_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
@@ -28,15 +28,15 @@ async function fetchBytecode(address, rpcUrl) {
         if (storage && storage !== "0x" && storage.replace(/0x0+/, '') !== "") {
             const implAddress = "0x" + storage.slice(-40);
             if (implAddress !== "0x0000000000000000000000000000000000000000") {
-                if (global.logLevel >= 1) console.log(`[Fetcher] 🛡️ Proxy EIP-1967 détecté ! Résolution de l'implémentation (Upgrade) vers : ${implAddress}`);
+                if (globalThis.logLevel >= 1) console.log(`[Fetcher] 🛡️ Proxy EIP-1967 détecté ! Résolution de l'implémentation (Upgrade) vers : ${implAddress}`);
                 targetAddress = implAddress;
             }
         }
     } catch (e) {
-        if (global.logLevel >= 1) console.log(`[Fetcher] Attention: Impossible de vérifier le slot EIP-1967 (${e.message})`);
+        if (globalThis.logLevel >= 1) console.log(`[Fetcher] Attention: Impossible de vérifier le slot EIP-1967 (${e.message})`);
     }
 
-    if (global.logLevel >= 1) console.log(`[Fetcher] Téléchargement du bytecode pour ${targetAddress}...`);
+    if (globalThis.logLevel >= 1) console.log(`[Fetcher] Téléchargement du bytecode pour ${targetAddress}...`);
     const bytecode = await rpcCall(rpcUrl, "eth_getCode", [targetAddress, "latest"]);
     
     if (!bytecode || bytecode === "0x") {
