@@ -8,16 +8,16 @@ Pythia is a **symbolic execution engine**, **decompiler**, and **Control Flow Gr
 
 ## Features
 
-### 🎯 Exploit Generation (PoC)
+### Exploit Generation (PoC)
 - **Automatic Z3 Model Extraction**: Finds the exact transaction calldata required to reach a mathematically reachable Basic Block (or vulnerability).
 - **Zero False-Positives**: If a path is mathematically impossible, Z3 returns UNSAT. If it returns SAT, you get the concrete `calldata_hex`.
 - **Constraint Tracing**: Exports the full array of LISP S-expressions (Z3 path constraints) showing everything the solver had to satisfy.
 
-### 🌐 RPC & Proxy Fetching
+### RPC & Proxy Fetching
 - **Direct Blockchain Fetching**: Pass an Ethereum address (`0x...`) instead of a local file, and Pythia will automatically download its bytecode via RPC.
 - **Auto EIP-1967 Proxy Resolution**: When fetching a contract, Pythia automatically checks the EIP-1967 implementation storage slot. If it's a proxy, it resolves and downloads the true implementation (upgrade) automatically.
 
-### 🔬 Symbolic Engine
+### Symbolic Engine
 - **Correct Symbolic Storage & Memory**: `SLOAD` and `MLOAD` with symbolic offsets return unconstrained Z3 variables instead of the concrete value `0`, ensuring both branches of conditions like `require(balances[x] > 0)` are fully explored.
 - **Per-Path Loop Detection**: The visit counter is scoped to each execution branch (`state.pathVisited`) rather than globally shared — prevents legitimate paths from being killed because they share a `REVERT` block with 1000 other branches.
 - **Stable Symbolic Opcodes**: `EXP`, `BYTE`, `SIGNEXTEND`, and `SHA3` are modelled as stable uninterpreted functions keyed to their Z3 AST node IDs. Same operands → same variable name across all branches.
@@ -27,13 +27,13 @@ Pythia is a **symbolic execution engine**, **decompiler**, and **Control Flow Gr
 - **Up-to-Date EVM**: Supports the latest hardforks (Shanghai & Cancun) including `TLOAD`, `TSTORE`, `MCOPY`, `PUSH0`, `BLOBHASH`, and `BLOBBASEFEE`.
 - **Auto-OOM Protection**: Periodic V8 GC to gracefully handle large contracts (e.g. Lido).
 
-### 📐 Structured AST
+### Structured AST
 - **Post-Dominator Merge Points**: `ASTBuilder` runs a simultaneous BFS from both JUMPI branches to find their immediate post-dominator — the mathematical boundary of every `if/else` block.
 - **Recursive If/Else Nodes**: `trueBranch` and `falseBranch` are full sub-ASTs bounded by the merge-point. No flat lists with interleaved goto targets.
 - **Automatic While Detection**: A branch containing a `LoopBack` targeting its own condition block is automatically promoted to a `while` node.
 - **Back-Edge Safety**: Recursive sub-builders receive the parent's `inStack` as `loopHeaders`, emitting `LoopBack` instead of recursing infinitely.
 
-### 📝 Pseudo-Code Decompiler
+### Pseudo-Code Decompiler
 - **Type Inference (Variables & Storage)**: Infers types by tracking memory writes. Seamlessly converts `MSTORE` + `SHA3` sequences into `mapping_SLOT[key]` or `array_start_SLOT`.
 - **Argument & Address Inference**: Resolves `CALLDATALOAD` offsets into `arg0, arg1, ...` and automatically casts masked values to `address(...)`.
 - **Structured if/else**: Properly indented `if (cond) { … } else { … }` — no more `goto PC_X` placeholders for conditional branches.
@@ -41,12 +41,12 @@ Pythia is a **symbolic execution engine**, **decompiler**, and **Control Flow Gr
 - **Function Extraction**: Identifies individual Solidity functions from the ABI dispatcher and decompiles each one separately.
 - **Expression Simplifier**: Folds constants, recognises `msg.sig`, hides scratch memory writes, and heavily nests expressions to produce clean, readable Solidity-like code without Yul-style SSA clutter.
 
-### 📦 Yul Decompiler
+### Yul Decompiler
 - **~60 Opcode Coverage**: Every EVM opcode has a native Yul built-in equivalent — arithmetic, comparison, bitwise, memory, storage, environment, system calls (`call`, `staticcall`, `delegatecall`, `create2`), logs (`log0`–`log4`), EIP-1153 transient storage, and Cancun opcodes.
 - **Stack Propagation**: A BFS pre-pass seeds each block's stack state from its CFG predecessors.
 - **Structured Output**: While-loops emit `for { } 1 { } { if iszero(cond) { break } … }`, if/else uses dual `if`/`if iszero`, and back-edges emit `continue`.
 
-### 🛠️ Tooling
+### Tooling
 - **Function Signature Resolution**: Extracts 4-byte selectors and resolves names via a local dictionary with `4byte.directory` API fallback.
 - **ABI Decompilation**: Infers a standard JSON ABI by tracking state mutations, calldata reads, return statements, and `LOG` events.
 - **Linear Disassembler**: Human-readable EVM instructions from the terminal.
