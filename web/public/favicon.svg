@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Mystical Eye Outline (Oracle / Pythia theme) -->
+  <path d="M 5 50 Q 50 10 95 50 Q 50 90 5 50 Z" 
+        stroke="#cba6f7" stroke-width="8" fill="rgba(203,166,247,0.1)" stroke-linejoin="round"/>
+  
+  <!-- CFG Edges (Visualizer theme) -->
+  <line x1="30" y1="50" x2="50" y2="50" stroke="#a6e3a1" stroke-width="5" />
+  <line x1="50" y1="50" x2="70" y2="50" stroke="#f38ba8" stroke-width="5" />
+  <line x1="50" y1="50" x2="50" y2="28" stroke="#89b4fa" stroke-width="5" />
+  <line x1="50" y1="50" x2="50" y2="72" stroke="#f9e2af" stroke-width="5" />
+
+  <!-- CFG Nodes (The pupil and surrounding states) -->
+  <circle cx="50" cy="50" r="10" fill="#cba6f7" /> <!-- Center Node (Pupil) -->
+  <circle cx="30" cy="50" r="5" fill="#a6e3a1" />  <!-- Left Node -->
+  <circle cx="70" cy="50" r="5" fill="#f38ba8" />  <!-- Right Node -->
+  <circle cx="50" cy="28" r="5" fill="#89b4fa" />  <!-- Top Node -->
+  <circle cx="50" cy="72" r="5" fill="#f9e2af" />  <!-- Bottom Node -->
+</svg>
