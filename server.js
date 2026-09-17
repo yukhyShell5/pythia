@@ -24,9 +24,12 @@ app.use('/vendor/viz-js/', express.static(
     path.join(__dirname, 'node_modules/@viz-js/viz/dist')
 ));
 
-// ─── Serve pythia.bundle.js at root (needed by the Web Worker via importScripts) ─
+// ─── Serve Pythia engine files at root (needed by the Web Worker) ────────────
 app.use('/pythia.bundle.js', express.static(
     path.join(__dirname, 'pythia.bundle.js')
+));
+app.use('/pythia.worker.js', express.static(
+    path.join(__dirname, 'pythia.worker.js')
 ));
 
 // ─── Serve the compiled React app ─────────────────────────────────────────────
