@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pythia Visualizer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Topbar (styled from pentest-web3) -->
+  <header class="ys-topbar">
+    <div style="font-weight: 700; color: var(--primary);">Pythia Visualizer</div>
+    <div style="color: var(--muted-foreground); margin-left: 1rem;">Powered by Pythia Engine</div>
+    <div style="flex: 1;"></div>
+    <a href="https://github.com/yukhyShell5/pythia" target="_blank">GitHub</a>
+  </header>
+
+  <!-- Main layout -->
+  <main class="app-layout">
+    <!-- Left Panel: Controls -->
+    <aside class="left-panel">
+      
+      <div class="panel-section">
+        <label class="section-label">Source Contract (Address or Hex)</label>
+        <textarea id="contract-input" placeholder="0x... or 60806040..."></textarea>
+        <button id="generate-btn" class="ys-btn">Generate Graph</button>
+        <p id="api-status" class="api-status"></p>
+      </div>
+      
+      <div class="divider">OR</div>
+      
+      <div class="panel-section">
+        <label class="section-label">Paste Pythia DOT Output</label>
+        <textarea id="dot-input" placeholder="digraph G { ... }"></textarea>
+        <button id="render-btn" class="ys-btn">Render DOT</button>
+      </div>
+
+    </aside>
+
+    <!-- Right Panel: Graphviz Viewer -->
+    <section class="right-panel">
+      <div id="graph-container">
+        <!-- d3-graphviz will render here -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Scripts -->
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="https://unpkg.com/@hpcc-js/wasm@2.13.0/dist/index.min.js"></script>
+  <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,12 +1,13 @@
 {
   "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "z3-solver": "^5.2.0"
   },
   "name": "@yukhyshell5/pythia",
   "version": "1.0.2",
   "description": "Turns incomprehensible bytecode into equally incomprehensible DOT graphs. But hey, at least it's visual.",
   "main": "index.js",
-  "devDependencies": {},
   "scripts": {
     "test": "node tests/run_all.js"
   },
