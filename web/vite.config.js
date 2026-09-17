@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  base: '/pythia/',
   plugins: [react()],
   // Proxy requests to Express for COOP/COEP headers
   server: {

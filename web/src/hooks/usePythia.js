@@ -23,9 +23,9 @@ export function usePythia() {
       workerRef.current = null;
     }
 
-    // /pythia.worker.js is a real file served by Express
-    // It calls importScripts('/pythia.bundle.js') and exposes Pythia.generateCFG
-    const worker = new Worker('/pythia.worker.js', { type: 'classic' });
+    // pythia.worker.js is a real file served by Express (or GitHub Pages)
+    // It calls importScripts('z3-built.js') and exposes Pythia.generateCFG
+    const worker = new Worker('pythia.worker.js', { type: 'classic' });
     workerRef.current = worker;
 
     worker.onmessage = (e) => {
