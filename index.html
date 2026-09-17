@@ -38,10 +38,10 @@
     </section>
   </main>
 
-  <!-- Scripts -->
-  <script src="https://d3js.org/d3.v5.min.js"></script>
-  <script src="https://unpkg.com/@hpcc-js/wasm@2.8.1/dist/index.min.js"></script>
-  <script src="https://unpkg.com/d3-graphviz@3.0.5/build/d3-graphviz.js"></script>
+  <!-- Scripts (served locally to guarantee correct MIME types & COOP/COEP headers) -->
+  <script src="https://d3js.org/d3.v5.min.js" crossorigin="anonymous"></script>
+  <script src="/vendor/hpcc-js-wasm/index.umd.js"></script>
+  <script src="/vendor/d3-graphviz/d3-graphviz.js"></script>
   
   <!-- Z3 WebAssembly and Pythia Browser Bundle -->
   <script src="z3-built.js"></script>

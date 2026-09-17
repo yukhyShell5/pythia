@@ -7,20 +7,35 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files from the root directory
+// ─── CRITICAL: SharedArrayBuffer requires these two headers ──────────────────
+// Z3 WASM uses pthreads (Emscripten), which requires SAB.
+// SAB is only available when the page is "cross-origin isolated".
+app.use((req, res, next) => {
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    next();
+});
+
+// ─── Serve hpcc-js/wasm and d3-graphviz locally (avoid CDN MIME issues) ──────
+app.use('/vendor/hpcc-js-wasm/', express.static(
+    path.join(__dirname, 'node_modules/@hpcc-js/wasm/dist')
+));
+app.use('/vendor/d3-graphviz/', express.static(
+    path.join(__dirname, 'node_modules/d3-graphviz/build')
+));
+
+// ─── Serve static files from the root directory ───────────────────────────────
 app.use(express.static(__dirname));
 
+// ─── API: Generate CFG from contract (optional server-side mode) ──────────────
 app.get('/api/cfg', (req, res) => {
     const target = req.query.target;
     if (!target) {
         return res.status(400).send('Target (address or hex) is required.');
     }
 
-    // Generate a unique ID for temporary output files
     const uuid = crypto.randomBytes(8).toString('hex');
     const outName = `web_temp_${uuid}`;
-    
-    // Call the pythia CLI
     const cmd = `node index.js cfg "${target}" --format dot --out ${outName} --max-depth 5000`;
     
     exec(cmd, { cwd: __dirname }, (error, stdout, stderr) => {
@@ -28,13 +43,11 @@ app.get('/api/cfg', (req, res) => {
         
         if (fs.existsSync(dotPath)) {
             const dotContent = fs.readFileSync(dotPath, 'utf8');
-            // Clean up temporary files
             try {
                 fs.unlinkSync(dotPath);
                 const jsonPath = path.join(__dirname, 'out', `${outName}.json`);
                 if (fs.existsSync(jsonPath)) fs.unlinkSync(jsonPath);
             } catch (e) {}
-
             res.json({ dot: dotContent });
         } else {
             res.status(500).send(stderr || stdout || 'Failed to generate CFG.');
@@ -44,4 +57,5 @@ app.get('/api/cfg', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Pythia Web Visualizer running on http://localhost:${PORT}`);
+    console.log(`Cross-Origin Isolation: enabled (SharedArrayBuffer active)`);
 });

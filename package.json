@@ -1,7 +1,9 @@
 {
   "dependencies": {
+    "@hpcc-js/wasm": "^2.35.2",
     "buffer": "^6.0.3",
     "cors": "^2.8.6",
+    "d3-graphviz": "^3.0.5",
     "express": "^5.2.1",
     "z3-solver": "^5.2.0"
   },
