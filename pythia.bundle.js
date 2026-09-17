@@ -10678,20 +10678,26 @@
       var { initZ3 } = require_state();
       var { SymbolicEngine } = require_engine();
       var { CFGExporter } = require_exporter();
+      var { Disassembler } = require_disassembler();
       var { fetchBytecode } = require_fetcher();
       window.Pythia = {
         initZ3,
         SymbolicEngine,
-        // Expose a helper to generate DOT string directly
         generateDOT: async (input) => {
           let bytecodeHex = input;
           if (input.startsWith("0x") && input.length === 42) {
             bytecodeHex = await fetchBytecode(input, "https://eth.meowrpc.com");
           }
+          bytecodeHex = bytecodeHex.replace(/^0x/, "");
           const z3 = await initZ3(100);
           const engine = new SymbolicEngine(bytecodeHex, z3, 5e3, 1);
           await engine.run();
-          const exporter = new CFGExporter(engine);
+          try {
+            await Disassembler.resolveSignatures(engine.basicBlocks);
+          } catch (e) {
+          }
+          const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
+          exporter.pruneUnreachable();
           return exporter.toDot();
         }
       };
