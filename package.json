@@ -4,7 +4,10 @@
     "@viz-js/viz": "^3.30.0",
     "buffer": "^6.0.3",
     "cors": "^2.8.6",
+    "cytoscape": "^3.34.3",
+    "cytoscape-dagre": "^4.0.1",
     "d3-graphviz": "^3.0.5",
+    "dagre": "^0.8.5",
     "express": "^5.2.1",
     "z3-solver": "^5.2.0"
   },

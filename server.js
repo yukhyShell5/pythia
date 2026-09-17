@@ -24,8 +24,13 @@ app.use('/vendor/viz-js/', express.static(
     path.join(__dirname, 'node_modules/@viz-js/viz/dist')
 ));
 
-// ─── Serve static files from the root directory ───────────────────────────────
-app.use(express.static(__dirname));
+// ─── Serve pythia.bundle.js at root (needed by the Web Worker via importScripts) ─
+app.use('/pythia.bundle.js', express.static(
+    path.join(__dirname, 'pythia.bundle.js')
+));
+
+// ─── Serve the compiled React app ─────────────────────────────────────────────
+app.use(express.static(path.join(__dirname, 'dist-web')));
 
 // ─── API: Generate CFG from contract (optional server-side mode) ──────────────
 app.get('/api/cfg', (req, res) => {

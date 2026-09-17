@@ -10674,33 +10674,38 @@
   var require_web_entry = __commonJS({
     "web_entry.js"() {
       var { Buffer: Buffer2 } = require_buffer();
-      window.Buffer = Buffer2;
+      globalThis.Buffer = Buffer2;
       var { initZ3 } = require_state();
       var { SymbolicEngine } = require_engine();
       var { CFGExporter } = require_exporter();
       var { Disassembler } = require_disassembler();
       var { fetchBytecode } = require_fetcher();
-      window.Pythia = {
-        initZ3,
-        SymbolicEngine,
-        generateDOT: async (input) => {
-          let bytecodeHex = input;
-          if (input.startsWith("0x") && input.length === 42) {
-            bytecodeHex = await fetchBytecode(input, "https://eth.meowrpc.com");
-          }
-          bytecodeHex = bytecodeHex.replace(/^0x/, "");
-          const z3 = await initZ3(100);
-          const engine = new SymbolicEngine(bytecodeHex, z3, 5e3, 1);
-          await engine.run();
-          try {
-            await Disassembler.resolveSignatures(engine.basicBlocks);
-          } catch (e) {
-          }
-          const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
-          exporter.pruneUnreachable();
-          return exporter.toDot();
+      async function resolveBytecode(input) {
+        const trimmed = input.trim();
+        if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
+          return fetchBytecode(trimmed, "https://eth.meowrpc.com");
         }
-      };
+        return trimmed.replace(/^0x/, "");
+      }
+      async function generateCFG(input) {
+        const bytecodeHex = await resolveBytecode(input);
+        const z3 = await initZ3(120);
+        const engine = new SymbolicEngine(bytecodeHex, z3, 8e3, 1);
+        await engine.run();
+        try {
+          await Disassembler.resolveSignatures(engine.basicBlocks);
+        } catch (_) {
+        }
+        const exporter = new CFGExporter(engine.cfgEdges, engine.basicBlocks);
+        exporter.pruneUnreachable();
+        return {
+          blocks: exporter.blocks,
+          // Array<BasicBlock>  { startPc, instructions[] }
+          edges: exporter.edges
+          // Array<Edge>        { from, to, type }
+        };
+      }
+      globalThis.Pythia = { generateCFG };
     }
   });
   require_web_entry();

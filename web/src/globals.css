@@ -1,0 +1,64 @@
+:root {
+  --radius: 0.25rem;
+  --background: #17171a;
+  --foreground: #eae8ee;
+  --card: #1e1e22;
+  --primary: #cba6f7;
+  --primary-foreground: #17171a;
+  --secondary: #26262b;
+  --muted-foreground: #908f96;
+  --border: #26262b;
+  --ring: #cba6f7;
+  --success: #a6e3a1;
+  --warning: #f9e2af;
+  --destructive: #f38ba8;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #35353d; border-radius: 3px; }
+
+a { color: var(--primary); text-decoration: none; }
+
+/* ReactFlow overrides */
+.react-flow__background { background: var(--background) !important; }
+.react-flow__controls {
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+}
+.react-flow__controls button {
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+  color: var(--muted-foreground) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.react-flow__controls button:hover {
+  background: var(--secondary) !important;
+  color: var(--primary) !important;
+}
+.react-flow__controls button svg { fill: currentColor !important; }
+.react-flow__minimap {
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  background: var(--card) !important;
+}
