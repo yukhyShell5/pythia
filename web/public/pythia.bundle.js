@@ -9378,7 +9378,7 @@
       __exportStar2(require_types(), exports);
       __exportStar2(require_types_GENERATED(), exports);
       async function init(moduleOverrides = {}) {
-        const initZ3 = window.initZ3;
+        const initZ3 = globalThis.initZ3;
         if (initZ3 === void 0) {
           throw new Error("initZ3 was not imported correctly. Please consult documentation on how to load Z3 in browser");
         }

@@ -2,7 +2,7 @@
 // This file is served by Express at /pythia.worker.js
 // and loaded by usePythia.js via new Worker('/pythia.worker.js')
 
-importScripts('/pythia.bundle.js');
+importScripts('/z3-built.js', '/pythia.bundle.js');
 
 self.onmessage = async function (e) {
   try {
