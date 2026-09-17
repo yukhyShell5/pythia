@@ -20,8 +20,8 @@ app.use((req, res, next) => {
 app.use('/vendor/hpcc-js-wasm/', express.static(
     path.join(__dirname, 'node_modules/@hpcc-js/wasm/dist')
 ));
-app.use('/vendor/d3-graphviz/', express.static(
-    path.join(__dirname, 'node_modules/d3-graphviz/build')
+app.use('/vendor/viz-js/', express.static(
+    path.join(__dirname, 'node_modules/@viz-js/viz/dist')
 ));
 
 // ─── Serve static files from the root directory ───────────────────────────────

@@ -38,11 +38,9 @@
     </section>
   </main>
 
-  <!-- Scripts (served locally to guarantee correct MIME types & COOP/COEP headers) -->
-  <script src="https://d3js.org/d3.v5.min.js" crossorigin="anonymous"></script>
-  <script src="/vendor/hpcc-js-wasm/index.umd.js"></script>
-  <script src="/vendor/d3-graphviz/d3-graphviz.js"></script>
-  
+  <!-- viz-js: simple graphviz DOT → SVG renderer (no worker, no WASM setup) -->
+  <script src="/vendor/viz-js/viz-global.js"></script>
+
   <!-- Z3 WebAssembly and Pythia Browser Bundle -->
   <script src="z3-built.js"></script>
   <script src="pythia.bundle.js"></script>
