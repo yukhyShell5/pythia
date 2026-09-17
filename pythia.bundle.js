@@ -3,12 +3,6 @@
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
-  var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-    get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-  }) : x)(function(x) {
-    if (typeof require !== "undefined") return require.apply(this, arguments);
-    throw Error('Dynamic require of "' + x + '" is not supported');
-  });
   var __esm = (fn, res, err) => function __init() {
     if (err) throw err[0];
     try {
@@ -17,7 +11,7 @@
       throw err = [e], e;
     }
   };
-  var __commonJS = (cb, mod) => function __require2() {
+  var __commonJS = (cb, mod) => function __require() {
     try {
       return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
     } catch (e) {
@@ -7626,14 +7620,14 @@
       var z3Context = null;
       async function initZ3(timeoutMs = 1e4) {
         if (!z3Context) {
-          if (global.logLevel >= 1) console.log("[Z3] Initializing solver...");
+          if (globalThis.logLevel >= 1) console.log("[Z3] Initializing solver...");
           const { Context, setParam } = await init();
           if (typeof setParam === "function") {
             setParam("timeout", timeoutMs);
-            if (global.logLevel >= 1) console.log(`[Z3] Global timeout configured to ${timeoutMs}ms.`);
+            if (globalThis.logLevel >= 1) console.log(`[Z3] Global timeout configured to ${timeoutMs}ms.`);
           }
           z3Context = new Context("main");
-          if (global.logLevel >= 1) console.log("[Z3] Solver initialized successfully.");
+          if (globalThis.logLevel >= 1) console.log("[Z3] Solver initialized successfully.");
         }
         return z3Context;
       }
@@ -7748,14 +7742,32 @@
     }
   });
 
+  // shim-fs.js
+  var require_shim_fs = __commonJS({
+    "shim-fs.js"(exports, module) {
+      module.exports = {
+        readFileSync: () => "",
+        writeFileSync: () => {
+        }
+      };
+    }
+  });
+
+  // shim-empty.js
+  var require_shim_empty = __commonJS({
+    "shim-empty.js"(exports, module) {
+      module.exports = {};
+    }
+  });
+
   // src/signatures.js
   var require_signatures = __commonJS({
     "src/signatures.js"(exports, module) {
-      var fs = __require("fs");
-      var path = __require("path");
+      var fs = require_shim_fs();
+      var path = require_shim_empty();
       var https;
       if (typeof window === "undefined") {
-        https = __require("https");
+        https = require_shim_empty();
       }
       var LOCAL_SIGNATURES = {
         "0x06fdde03": "name()",
@@ -8200,9 +8212,9 @@
           while (this.queue.length > 0) {
             iter++;
             if (iter % 1e3 === 0) {
-              if (global.logLevel >= 2) console.log(`[+] Visited ${this.visitedStates.size} states (Queue: ${this.queue.length}, Depth: ${this.queue[this.queue.length - 1].depth})`);
-              if (global.gc) {
-                global.gc();
+              if (globalThis.logLevel >= 2) console.log(`[+] Visited ${this.visitedStates.size} states (Queue: ${this.queue.length}, Depth: ${this.queue[this.queue.length - 1].depth})`);
+              if (globalThis.gc) {
+                globalThis.gc();
               }
               await new Promise((r) => setTimeout(r, 0));
             }
@@ -8295,7 +8307,7 @@
               nextState.depth = 0;
               nextState.storage = new Map(state.storage);
               nextState.pathConstraints = [...state.pathConstraints];
-              if (global.logLevel >= 1) {
+              if (globalThis.logLevel >= 1) {
                 console.log(`[MultiTx] \u{1F517} Tx${state.txIndex + 1} termin\xE9e \u2192 lancement Tx${state.txIndex + 2}`);
               }
               this.queue.push(nextState);
@@ -8626,14 +8638,14 @@
          * Supporte le mode multi-transaction (txHistory).
          */
         async generatePoC(state) {
-          if (global.logLevel >= 1) console.log(`[PoC] Target PC=${state.pc} reached on Tx${state.txIndex + 1}! Solving path constraints...`);
+          if (globalThis.logLevel >= 1) console.log(`[PoC] Target PC=${state.pc} reached on Tx${state.txIndex + 1}! Solving path constraints...`);
           this.solver.reset();
           for (const constraint of state.pathConstraints) {
             this.solver.add(constraint);
           }
           const status = await this.solver.check();
           if (status !== "sat") {
-            if (global.logLevel >= 1) console.log(`[PoC] Path to PC=${state.pc} is ${status} (Unreachable in this path).`);
+            if (globalThis.logLevel >= 1) console.log(`[PoC] Path to PC=${state.pc} is ${status} (Unreachable in this path).`);
             return null;
           }
           const model = this.solver.model();
@@ -8726,8 +8738,8 @@
   // src/exporter.js
   var require_exporter = __commonJS({
     "src/exporter.js"(exports, module) {
-      var fs = __require("fs");
-      var path = __require("path");
+      var fs = require_shim_fs();
+      var path = require_shim_empty();
       var CFGExporter = class {
         /**
          * @param {Array} edges - Le tableau d'arêtes généré par SymbolicEngine (cfgEdges)
@@ -8856,7 +8868,7 @@
         return data.result;
       }
       async function fetchBytecode(address, rpcUrl) {
-        if (global.logLevel >= 1) console.log(`[Fetcher] Interrogation RPC pour ${address}...`);
+        if (globalThis.logLevel >= 1) console.log(`[Fetcher] Interrogation RPC pour ${address}...`);
         const EIP1967_IMPL_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
         let targetAddress = address;
         try {
@@ -8864,14 +8876,14 @@
           if (storage && storage !== "0x" && storage.replace(/0x0+/, "") !== "") {
             const implAddress = "0x" + storage.slice(-40);
             if (implAddress !== "0x0000000000000000000000000000000000000000") {
-              if (global.logLevel >= 1) console.log(`[Fetcher] \u{1F6E1}\uFE0F Proxy EIP-1967 d\xE9tect\xE9 ! R\xE9solution de l'impl\xE9mentation (Upgrade) vers : ${implAddress}`);
+              if (globalThis.logLevel >= 1) console.log(`[Fetcher] \u{1F6E1}\uFE0F Proxy EIP-1967 d\xE9tect\xE9 ! R\xE9solution de l'impl\xE9mentation (Upgrade) vers : ${implAddress}`);
               targetAddress = implAddress;
             }
           }
         } catch (e) {
-          if (global.logLevel >= 1) console.log(`[Fetcher] Attention: Impossible de v\xE9rifier le slot EIP-1967 (${e.message})`);
+          if (globalThis.logLevel >= 1) console.log(`[Fetcher] Attention: Impossible de v\xE9rifier le slot EIP-1967 (${e.message})`);
         }
-        if (global.logLevel >= 1) console.log(`[Fetcher] T\xE9l\xE9chargement du bytecode pour ${targetAddress}...`);
+        if (globalThis.logLevel >= 1) console.log(`[Fetcher] T\xE9l\xE9chargement du bytecode pour ${targetAddress}...`);
         const bytecode = await rpcCall(rpcUrl, "eth_getCode", [targetAddress, "latest"]);
         if (!bytecode || bytecode === "0x") {
           throw new Error(`Aucun bytecode (contrat vide) \xE0 l'adresse ${targetAddress}`);
