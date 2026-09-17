@@ -7,9 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
       .logEvents(false)
       .fit(true);
 
-  const dotInput = document.getElementById('dot-input');
-  const renderBtn = document.getElementById('render-btn');
-  
   const contractInput = document.getElementById('contract-input');
   const generateBtn = document.getElementById('generate-btn');
   const apiStatus = document.getElementById('api-status');
@@ -23,12 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error("Graphviz Render Error:", e);
     }
   }
-
-  // Handle direct DOT rendering
-  renderBtn.addEventListener('click', () => {
-    const dotString = dotInput.value;
-    renderDot(dotString);
-  });
 
   // Handle in-browser Pythia generation
   generateBtn.addEventListener('click', async () => {
@@ -48,7 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Generate DOT in memory!
             const dotOutput = await window.Pythia.generateDOT(target);
             
-            dotInput.value = dotOutput;
             renderDot(dotOutput);
             apiStatus.textContent = 'Graph generated client-side successfully!';
             apiStatus.className = 'api-status success';
@@ -74,6 +64,5 @@ document.addEventListener('DOMContentLoaded', () => {
     Block1 -> Block2 [label="False"];
   }`;
   
-  dotInput.value = defaultDot;
   renderDot(defaultDot);
 });
