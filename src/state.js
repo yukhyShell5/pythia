@@ -68,11 +68,15 @@ class SymbolicState {
         newState.pathVisited = new Map(this.pathVisited);
 
         // Multi-transaction : transmettre l'intégralité du contexte inter-Tx
-        newState.txIndex   = this.txIndex;
-        newState.txHistory = this.txHistory.map(h => ({
-            constraints:     [...h.constraints],
-            storageSnapshot: new Map(h.storageSnapshot)
-        }));
+        newState.txIndex = this.txIndex;
+        if (this.txHistory.length === 0) {
+            newState.txHistory = [];
+        } else {
+            newState.txHistory = this.txHistory.map(h => ({
+                constraints:     [...h.constraints],
+                storageSnapshot: new Map(h.storageSnapshot)
+            }));
+        }
         
         // Copie des Maps de la Tx courante
         newState.memory = new Map(this.memory);
