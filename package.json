@@ -9,10 +9,17 @@
   "description": "Turns incomprehensible bytecode into equally incomprehensible DOT graphs. But hey, at least it's visual.",
   "main": "index.js",
   "scripts": {
-    "test": "node tests/run_all.js"
+    "test": "node tests/run_all.js",
+    "build:web": "esbuild web_entry.js --bundle --outfile=pythia.bundle.js --alias:z3-solver=z3-solver/build/browser.js --external:fs --external:path --external:child_process --external:https --format=iife"
   },
   "keywords": [],
   "author": "yukhyShell5",
   "license": "MIT",
-  "type": "commonjs"
+  "type": "commonjs",
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
 }

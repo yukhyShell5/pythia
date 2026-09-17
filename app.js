@@ -30,30 +30,34 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDot(dotString);
   });
 
-  // Handle API generation (if backend is running)
+  // Handle in-browser Pythia generation
   generateBtn.addEventListener('click', async () => {
-    const target = contractInput.value.trim();
+    let target = contractInput.value.trim();
     if (!target) return;
 
-    apiStatus.textContent = 'Generating... (Requires local backend)';
+    apiStatus.textContent = 'Initializing Z3 Engine & Generating CFG... (This may take a moment)';
     apiStatus.className = 'api-status loading';
 
-    try {
-      const response = await fetch(`/api/cfg?target=${encodeURIComponent(target)}`);
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      const data = await response.json();
-      if (data.dot) {
-        dotInput.value = data.dot;
-        renderDot(data.dot);
-        apiStatus.textContent = 'Graph generated successfully!';
-        apiStatus.className = 'api-status success';
-      }
-    } catch (err) {
-      apiStatus.textContent = `Error: ${err.message}`;
-      apiStatus.className = 'api-status error';
-    }
+    // Small delay to allow UI to update before blocking thread
+    setTimeout(async () => {
+        try {
+            if (!window.Pythia || !window.Pythia.generateDOT) {
+                throw new Error("Pythia bundle not loaded correctly.");
+            }
+            
+            // Generate DOT in memory!
+            const dotOutput = await window.Pythia.generateDOT(target);
+            
+            dotInput.value = dotOutput;
+            renderDot(dotOutput);
+            apiStatus.textContent = 'Graph generated client-side successfully!';
+            apiStatus.className = 'api-status success';
+        } catch (err) {
+            console.error(err);
+            apiStatus.textContent = `Error: ${err.message}`;
+            apiStatus.className = 'api-status error';
+        }
+    }, 50);
   });
 
   // Example default graph
