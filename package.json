@@ -17,7 +17,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node tests/run_all.js",
-    "build:web": "esbuild web_entry.js --bundle --outfile=pythia.bundle.js --alias:z3-solver=z3-solver/build/browser.js --alias:fs=./shim-fs.js --alias:path=./shim-empty.js --alias:child_process=./shim-empty.js --alias:https=./shim-empty.js --format=iife --define:global=window"
+    "build:web": "esbuild web_entry.js --bundle --outfile=pythia.bundle.js --alias:z3-solver=z3-solver/build/browser.js --alias:fs=./shim-fs.js --alias:path=./shim-empty.js --alias:child_process=./shim-empty.js --alias:https=./shim-empty.js --format=iife --define:global=window && cp pythia.bundle.js web/public/pythia.bundle.js && cp pythia.worker.js web/public/pythia.worker.js"
   },
   "keywords": [],
   "author": "yukhyShell5",
