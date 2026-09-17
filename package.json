@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "buffer": "^6.0.3",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "z3-solver": "^5.2.0"

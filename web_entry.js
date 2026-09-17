@@ -1,3 +1,5 @@
+const { Buffer } = require('buffer');
+window.Buffer = Buffer;
 const { initZ3 } = require('./src/state.js');
 const { SymbolicEngine } = require('./src/engine.js');
 const { CFGExporter } = require('./src/exporter.js');
