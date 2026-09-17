@@ -62,3 +62,24 @@ a { color: var(--primary); text-decoration: none; }
   border-radius: 6px !important;
   background: var(--card) !important;
 }
+
+/* Empty State */
+.cfg-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+}
+.cfg-empty .icon {
+  font-size: 2.5rem;
+  opacity: 0.3;
+}
+.cfg-empty p {
+  font-size: 0.85rem;
+  margin: 0;
+  opacity: 0.7;
+}
