@@ -8,7 +8,7 @@ const { fetchBytecode } = require('./src/fetcher.js');
 const { execSync } = require('child_process');
 
 // Relance automatique du script avec le flag --expose-gc pour protéger la RAM WebAssembly
-if (!global.gc && !process.env.PYTHIA_GC_RESPAWN) {
+if (!globalThis.gc && !process.env.PYTHIA_GC_RESPAWN) {
     process.env.PYTHIA_GC_RESPAWN = '1';
     try {
         execSync(`node --expose-gc "${__filename}" ${process.argv.slice(2).join(' ')}`, { stdio: 'inherit' });
@@ -82,7 +82,7 @@ Examples:
         const parsed = parseInt(args[logIndex + 1], 10);
         if (!isNaN(parsed)) logLevel = parsed;
     }
-    global.logLevel = logLevel;
+    globalThis.logLevel = logLevel;
 
     let rpcUrl = "https://eth.meowrpc.com";
     const rpcIndex = args.indexOf('--rpc');
@@ -108,10 +108,10 @@ Examples:
                 console.error(`[-] Error: File not found at path: ${bytecodeInput}`);
                 process.exit(1);
             }
-            if (global.logLevel >= 1) console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
+            if (globalThis.logLevel >= 1) console.log(`[+] Reading bytecode from file: ${bytecodeInput}`);
             bytecodeHex = fs.readFileSync(bytecodeInput, 'utf8').trim();
         } else {
-            if (global.logLevel >= 1) console.log(`[+] Reading bytecode from command line argument.`);
+            if (globalThis.logLevel >= 1) console.log(`[+] Reading bytecode from command line argument.`);
             bytecodeHex = bytecodeInput.trim();
             if (!/^[0-9a-fA-F]+$/.test(bytecodeHex.replace(/^0x/, ''))) {
                  console.error(`[-] Error: Invalid input (not an address, file, or hex string).`);
@@ -138,7 +138,7 @@ Examples:
         const blocks = Disassembler.buildBasicBlocks(bytecode, validJumpDests, bytecode.length);
         
         // On résout toujours les signatures par défaut
-        if (global.logLevel >= 1) console.log("[+] Resolving 4-byte signatures...");
+        if (globalThis.logLevel >= 1) console.log("[+] Resolving 4-byte signatures...");
         await Disassembler.resolveSignatures(blocks);
 
         console.log("=== EVM Disassembly ===");
