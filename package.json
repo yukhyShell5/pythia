@@ -3,7 +3,7 @@
     "z3-solver": "^5.2.0"
   },
   "name": "@yukhyshell5/pythia",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Turns incomprehensible bytecode into equally incomprehensible DOT graphs. But hey, at least it's visual.",
   "main": "index.js",
   "devDependencies": {},
