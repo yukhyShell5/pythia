@@ -9,7 +9,10 @@ let z3Context = null;
 async function initZ3(timeoutMs = 10000) {
     if (!z3Context) {
         if (globalThis.logLevel >= 1) console.log("[Z3] Initializing solver...");
-        const { Context, setParam } = await init();
+        const { Context, setParam, em, Z3 } = await init({
+            mainScriptUrlOrBlob: '/z3-built.js',
+            locateFile: (path) => '/' + path
+        });
         
         // Configuration du timeout global pour éviter les blocages sur des chemins complexes
         if (typeof setParam === 'function') {
