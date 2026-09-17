@@ -9398,8 +9398,8 @@
         if (!z3Context) {
           if (globalThis.logLevel >= 1) console.log("[Z3] Initializing solver...");
           const { Context, setParam, em, Z3 } = await init({
-            mainScriptUrlOrBlob: "/z3-built.js",
-            locateFile: (path) => "/" + path
+            mainScriptUrlOrBlob: "z3-built.js",
+            locateFile: (path) => path
           });
           if (typeof setParam === "function") {
             setParam("timeout", timeoutMs);
